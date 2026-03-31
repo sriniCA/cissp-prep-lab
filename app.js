@@ -462,11 +462,16 @@
     timerPausedMs: 0,
     lastByDomain: {},
     // ── CAT (adaptive mode) ───────────────────────────────────────
-    adaptive: false,          // true when adaptive mode is active
-    adaptivePool: [],         // remaining unserved questions
-    adaptiveTotal: 0,         // target total question count
-    catTheta: 0.30,           // ability estimate 0.00–1.00 (starts just below medium)
-    catHistory: []            // [{correct, hard}] — last answered questions
+    adaptive: false,
+    adaptivePool: [],
+    adaptiveTotal: 0,
+    catTheta: 0.30,
+    catHistory: [],
+    // ── Voice mode ────────────────────────────────────────────────
+    voiceMode: false,         // voice panel visible
+    voiceSpeaking: false,     // TTS active
+    voiceListening: false,    // STT active
+    voiceRecog: null          // current SpeechRecognition instance
   };
 
   function $(id) {
@@ -1441,9 +1446,9 @@
       renderQuestion();
     });
 
-    $("btn-prev").addEventListener("click", () => { resumeTimer(); goDelta(-1); });
+    $("btn-prev").addEventListener("click", () => { stopVoice(); resumeTimer(); goDelta(-1); });
     $("btn-next").addEventListener("click", () => {
-      resumeTimer();
+      stopVoice(); resumeTimer();
       // In adaptive mode, update theta from the current answer before loading the next question
       if (state.adaptive && state.index === state.questions.length - 1) {
         const ans = state.answers[state.index];
@@ -1475,14 +1480,14 @@
     });
 
     $("btn-finish-study").addEventListener("click", () => {
-      resumeTimer(); // clear any pause before finalising
+      stopVoice(); resumeTimer();
       finishExam(false);
     });
 
     $("btn-submit").addEventListener("click", () => {
       const unanswered = state.answers.some((a) => a === null || a === undefined);
       if (unanswered && !confirm("Some questions are unanswered. Submit anyway?")) return;
-      resumeTimer();
+      stopVoice(); resumeTimer();
       // Commit theta for the final adaptive question before scoring
       if (state.adaptive) {
         const ans = state.answers[state.index];
@@ -1496,10 +1501,18 @@
 
     $("btn-abort").addEventListener("click", () => {
       if (confirm("Leave this session?")) {
+        stopVoice();
         clearTimer();
         showView("view-home");
       }
     });
+
+    // ── Voice buttons ────────────────────────────────────────────────
+    $("btn-toggle-voice").addEventListener("click", toggleVoiceMode);
+    $("btn-voice-rl").addEventListener("click",    doVoiceSession);
+    $("btn-voice-read").addEventListener("click",  doVoiceRead);
+    $("btn-voice-listen").addEventListener("click",doVoiceListen);
+    $("btn-voice-stop").addEventListener("click",  stopVoice);
 
     $("btn-mark-hard").addEventListener("click", () => {
       const q = state.questions[state.index];
@@ -2535,6 +2548,222 @@
     wireOnce("btn-resume-print",   printResumeAsPDF);
     wireOnce("btn-analyze-job",    analyzeJobMatch);
     wireOnce("btn-apply-keywords", applyKeywordsToResume);
+  }
+
+  // ── Voice Mode ───────────────────────────────────────────────────
+
+  const VS = {            // voice status type → icon + bar class
+    idle:      { icon: "🎙", cls: "vs-idle" },
+    reading:   { icon: "🔊", cls: "vs-reading" },
+    listening: { icon: "🎤", cls: "vs-listening" },
+    thinking:  { icon: "💭", cls: "vs-thinking" },
+    correct:   { icon: "✅", cls: "vs-correct" },
+    wrong:     { icon: "❌", cls: "vs-wrong" },
+    error:     { icon: "⚠️", cls: "vs-error" },
+  };
+
+  function setVoiceStatus(type, text, transcript) {
+    const bar  = $("voice-status-bar");
+    const ico  = $("vs-icon");
+    const txt  = $("vs-text");
+    const trs  = $("vs-transcript");
+    const ring = $("vs-ring");
+    if (!bar) return;
+    const s = VS[type] || VS.idle;
+    bar.className = "voice-status-bar " + s.cls;
+    if (ico) ico.textContent = s.icon;
+    if (txt) txt.textContent = text || "";
+    if (trs) trs.textContent = transcript ? `"${transcript}"` : "";
+    if (ring) ring.className = "vs-ring" + (["reading","listening"].includes(type) ? " vs-ring-pulse" : "");
+    // Update toggle button appearance
+    const btn = $("btn-toggle-voice");
+    if (btn) btn.classList.toggle("voice-active", state.voiceMode);
+  }
+
+  /** Speak text using TTS, call onEnd when done. */
+  function speak(text, onEnd) {
+    const synth = window.speechSynthesis;
+    if (!synth) { if (onEnd) onEnd(); return; }
+    synth.cancel();
+    state.voiceSpeaking = true;
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang   = "en-US";
+    utt.rate   = 0.88;
+    utt.pitch  = 1.0;
+    utt.volume = 1.0;
+    utt.onend  = () => { state.voiceSpeaking = false; if (onEnd) onEnd(); };
+    utt.onerror = () => { state.voiceSpeaking = false; if (onEnd) onEnd(); };
+    // Chrome bug: speech pauses after ~15 s — keep it awake
+    const keepAlive = setInterval(() => {
+      if (!state.voiceSpeaking) { clearInterval(keepAlive); return; }
+      synth.pause(); synth.resume();
+    }, 10000);
+    utt.onend = () => { clearInterval(keepAlive); state.voiceSpeaking = false; if (onEnd) onEnd(); };
+    synth.speak(utt);
+  }
+
+  /** Stop any TTS or STT in progress. */
+  function stopVoice() {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (state.voiceRecog) {
+      try { state.voiceRecog.abort(); } catch (e) {}
+      state.voiceRecog = null;
+    }
+    state.voiceSpeaking = false;
+    state.voiceListening = false;
+    setVoiceStatus("idle", "Stopped.");
+  }
+
+  /** Parse spoken transcript → 0-3 answer index, or -1 if unrecognised. */
+  function parseVoiceAnswer(t) {
+    t = t.toLowerCase().trim();
+    const patterns = [
+      [0, /^a$|\ba\b|option a|answer a|choice a|letter a|first/],
+      [1, /^b$|\bb\b|option b|answer b|choice b|letter b|second/],
+      [2, /^c$|\bc\b|option c|answer c|choice c|letter c|third/],
+      [3, /^d$|\bd\b|option d|answer d|choice d|letter d|fourth/],
+    ];
+    for (const [idx, rx] of patterns) {
+      if (rx.test(t)) return idx;
+    }
+    const m = t.match(/\b([abcd])\b/);
+    return m ? "abcd".indexOf(m[1]) : -1;
+  }
+
+  /** Build the full question + options speech string. */
+  function buildQuestionSpeech(q, idx) {
+    const letters = ["A", "B", "C", "D"];
+    return `Question ${idx + 1}. ${q.text}. ` +
+      `Option A: ${q.choices[0]}. ` +
+      `Option B: ${q.choices[1]}. ` +
+      `Option C: ${q.choices[2]}. ` +
+      `Option D: ${q.choices[3]}. ` +
+      `Please say A, B, C, or D.`;
+  }
+
+  /** Process a recognised answer index from voice or manual trigger. */
+  function handleVoiceAnswer(ansIdx) {
+    const q = state.questions[state.index];
+    if (!q) return;
+    const letters = ["A","B","C","D"];
+    // Record answer in state
+    state.answers[state.index] = ansIdx;
+    renderQuestion(); // refresh choice highlights
+
+    const correct = (ansIdx === q.correctIndex);
+    const chosen  = letters[ansIdx];
+    const right   = letters[q.correctIndex];
+
+    if (correct) {
+      setVoiceStatus("correct", `Correct! "${chosen}" is right.`);
+      speak(
+        `Correct! ${chosen} is the right answer. ${q.explanation || "Well done."}`,
+        () => setVoiceStatus("correct", `✅ Correct! "${chosen}" — click Next to continue.`)
+      );
+    } else {
+      setVoiceStatus("wrong", `Incorrect. You said ${chosen}. Answer is ${right}.`);
+      const explain =
+        `Incorrect. You chose ${chosen}: "${q.choices[ansIdx]}". ` +
+        `The correct answer is ${right}: "${q.choices[q.correctIndex]}". ` +
+        (q.explanation ? `Here is why: ${q.explanation}` : "");
+      speak(
+        explain,
+        () => setVoiceStatus("wrong",
+          `❌ Wrong — correct answer is ${right}. Click Next to continue.`)
+      );
+    }
+  }
+
+  /** Start listening for a spoken answer. */
+  function doVoiceListen() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      setVoiceStatus("error", "Speech recognition needs Chrome, Edge, or Safari.");
+      return;
+    }
+    if (state.voiceListening) return;
+    state.voiceListening = true;
+    setVoiceStatus("listening", "Listening… say A, B, C, or D");
+
+    const recog = new SR();
+    state.voiceRecog = recog;
+    recog.lang = "en-US";
+    recog.continuous = false;
+    recog.interimResults = false;
+    recog.maxAlternatives = 5;
+
+    recog.onresult = e => {
+      state.voiceListening = false;
+      state.voiceRecog = null;
+      let ansIdx = -1, heard = "";
+      for (let i = 0; i < e.results[0].length; i++) {
+        heard   = e.results[0][i].transcript;
+        ansIdx  = parseVoiceAnswer(heard);
+        if (ansIdx !== -1) break;
+      }
+      if (ansIdx === -1) {
+        setVoiceStatus("error", `Heard "${heard}" — couldn't match A/B/C/D. Try again.`, heard);
+        speak(`I heard "${heard}". Please say A, B, C, or D.`);
+        return;
+      }
+      setVoiceStatus("thinking", `Heard "${heard}" → ${["A","B","C","D"][ansIdx]}`);
+      handleVoiceAnswer(ansIdx);
+    };
+
+    recog.onerror = e => {
+      state.voiceListening = false;
+      state.voiceRecog = null;
+      const msg = e.error === "no-speech" ? "No speech detected." : `Mic error: ${e.error}`;
+      setVoiceStatus("error", msg);
+    };
+
+    recog.onend = () => {
+      if (state.voiceListening) { // aborted without result
+        state.voiceListening = false;
+        setVoiceStatus("idle", "Listening stopped.");
+      }
+    };
+
+    recog.start();
+  }
+
+  /** Read question aloud (TTS only, no STT). */
+  function doVoiceRead() {
+    const q = state.questions[state.index];
+    if (!q) return;
+    stopVoice();
+    setVoiceStatus("reading", "Reading question…");
+    speak(buildQuestionSpeech(q, state.index),
+      () => setVoiceStatus("idle", "Done reading. Click Listen to answer."));
+  }
+
+  /** Full session: read question then auto-listen for answer. */
+  function doVoiceSession() {
+    const q = state.questions[state.index];
+    if (!q) return;
+    stopVoice();
+    setVoiceStatus("reading", "Reading question…");
+    speak(buildQuestionSpeech(q, state.index), () => {
+      if (!state.voiceMode) return; // user turned off voice mid-read
+      doVoiceListen();
+    });
+  }
+
+  /** Toggle voice panel on/off. */
+  function toggleVoiceMode() {
+    state.voiceMode = !state.voiceMode;
+    const panel = $("voice-panel");
+    if (panel) panel.classList.toggle("hidden", !state.voiceMode);
+    if (!state.voiceMode) {
+      stopVoice();
+    } else {
+      setVoiceStatus("idle", "Ready — click a button to start");
+    }
+    const btn = $("btn-toggle-voice");
+    if (btn) {
+      btn.classList.toggle("voice-active", state.voiceMode);
+      btn.title = state.voiceMode ? "Voice mode ON — click to turn off" : "Toggle voice mode";
+    }
   }
 
   // ── CAT (Computerised Adaptive Testing) engine ───────────────────
