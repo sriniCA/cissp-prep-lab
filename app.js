@@ -1,9 +1,13 @@
 (function () {
   "use strict";
 
-  // ── Token auth gate ──────────────────────────────────────────────
-  const ACCESS_TOKEN  = "55555";
-  const SESSION_KEY   = "cissp_auth_v1";
+  // ── Auth gate (token + optional Firebase / Google) ───────────────
+  const ACCESS_TOKEN = "55555";
+  const SESSION_KEY  = "cissp_auth_v1";
+  const ADMIN_EMAIL  = ((window.CISSP_ADMIN_EMAIL) || "").toLowerCase();
+
+  // Firebase handles (null when Firebase not configured)
+  let _db = null, _auth = null, _gProvider = null, _fbUser = null;
 
   function isAuthenticated() {
     return sessionStorage.getItem(SESSION_KEY) === "ok";
@@ -11,41 +15,310 @@
 
   function showApp() {
     document.getElementById("login-gate").classList.add("hidden");
+    document.getElementById("view-admin").classList.add("hidden");
     document.getElementById("app").classList.remove("hidden");
   }
 
-  function initLoginGate() {
-    if (isAuthenticated()) { showApp(); return; }
+  function fbReady() { return _db !== null; }
 
-    const tokenInput  = document.getElementById("login-token");
-    const submitBtn   = document.getElementById("login-submit");
-    const errorMsg    = document.getElementById("login-error");
+  function initFirebase() {
+    const cfg = window.FIREBASE_CONFIG;
+    if (!cfg || !cfg.apiKey || cfg.apiKey.startsWith("YOUR_")) return false;
+    if (typeof firebase === "undefined") return false;
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(cfg);
+      _auth      = firebase.auth();
+      _db        = firebase.firestore();
+      _gProvider = new firebase.auth.GoogleAuthProvider();
+      return true;
+    } catch (e) { console.warn("Firebase init:", e); return false; }
+  }
+
+  function generateToken() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let t = "";
+    for (let i = 0; i < 8; i++) t += chars[Math.floor(Math.random() * chars.length)];
+    return t;
+  }
+
+  function esc(s) {
+    return String(s || "")
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  function fmtDate(iso) {
+    try { return new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" }); }
+    catch { return iso || "—"; }
+  }
+
+  // ── Login gate render functions ───────────────────────────────────
+
+  function renderLoginMain() {
+    const lc = document.getElementById("lc");
+    lc.innerHTML =
+      `<div class="login-logo">🔐</div>` +
+      `<h1 class="login-title">CISSP Prep Lab</h1>` +
+      `<p class="login-sub">Enter your access token</p>` +
+      `<input type="password" id="login-token" class="login-input" placeholder="Access token" maxlength="32" autocomplete="off" />` +
+      `<p id="login-error" class="login-error hidden">Incorrect token — please try again.</p>` +
+      `<button type="button" id="login-submit" class="login-btn">Unlock →</button>` +
+      (fbReady()
+        ? `<div class="login-divider"><span>or</span></div>` +
+          `<button type="button" id="login-google" class="login-google-btn">` +
+            `<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="login-google-icon" alt="" />` +
+            `Continue with Google` +
+          `</button>` +
+          `<p class="login-hint">Register or check your access status</p>`
+        : "");
+
+    const inp = lc.querySelector("#login-token");
+    const err = lc.querySelector("#login-error");
 
     function attempt() {
-      if (tokenInput.value.trim() === ACCESS_TOKEN) {
+      if (inp.value.trim() === ACCESS_TOKEN) {
         sessionStorage.setItem(SESSION_KEY, "ok");
-        // Reload so the full app initialises cleanly after auth
         window.location.reload();
       } else {
-        tokenInput.value = "";
-        errorMsg.classList.remove("hidden");
-        tokenInput.classList.add("login-shake");
-        setTimeout(() => tokenInput.classList.remove("login-shake"), 500);
-        tokenInput.focus();
+        inp.value = "";
+        err.classList.remove("hidden");
+        inp.classList.add("login-shake");
+        setTimeout(() => inp.classList.remove("login-shake"), 500);
+        inp.focus();
       }
     }
 
-    submitBtn.addEventListener("click", attempt);
-    tokenInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") attempt();
-    });
+    lc.querySelector("#login-submit").addEventListener("click", attempt);
+    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") attempt(); });
+    inp.focus();
 
-    tokenInput.focus();
-    return; // app code below must not run until authenticated
+    if (fbReady()) {
+      lc.querySelector("#login-google").addEventListener("click", handleGoogleSignIn);
+    }
   }
 
-  initLoginGate();
-  if (!isAuthenticated()) return;
+  async function handleGoogleSignIn() {
+    const lc = document.getElementById("lc");
+    lc.innerHTML = `<div class="login-spinner"><div class="login-spin-ring"></div><p>Signing in…</p></div>`;
+    try {
+      const result = await _auth.signInWithPopup(_gProvider);
+      _fbUser = result.user;
+      const email = _fbUser.email.toLowerCase();
+
+      if (email === ADMIN_EMAIL) {
+        await openAdminPanel();
+        return;
+      }
+
+      const snap = await _db.collection("users").doc(email).get();
+      if (!snap.exists) {
+        renderNewUser(lc);
+      } else {
+        const d = snap.data();
+        if (d.status === "approved") renderApproved(lc, d);
+        else if (d.status === "pending") renderPending(lc);
+        else renderRevoked(lc);
+      }
+    } catch (e) {
+      const lc2 = document.getElementById("lc");
+      lc2.innerHTML =
+        `<div class="login-status-icon">⚠️</div>` +
+        `<p class="login-error" style="display:block;margin-bottom:1rem">Sign-in error: ${esc(e.message)}</p>` +
+        `<button type="button" class="login-btn" id="lr">Try Again</button>`;
+      lc2.querySelector("#lr").addEventListener("click", renderLoginMain);
+    }
+  }
+
+  function renderNewUser(lc) {
+    const name  = esc(_fbUser.displayName || _fbUser.email);
+    const email = esc(_fbUser.email);
+    lc.innerHTML =
+      `<div class="login-status-icon">${_fbUser.photoURL ? `<img src="${esc(_fbUser.photoURL)}" class="login-avatar" />` : "👤"}</div>` +
+      `<p class="login-user-name">${name}</p>` +
+      `<p class="login-hint" style="margin-bottom:0.9rem">${email}</p>` +
+      `<p style="font-size:0.85rem;color:var(--muted);margin:0 0 1rem">No access found. Submit a request — the admin will review it and generate your token.</p>` +
+      `<button type="button" id="req-btn" class="login-btn">Request Access</button>` +
+      `<button type="button" id="back-btn" class="login-btn-ghost">← Back</button>`;
+    lc.querySelector("#req-btn").addEventListener("click", () => submitAccessRequest(lc));
+    lc.querySelector("#back-btn").addEventListener("click", renderLoginMain);
+  }
+
+  async function submitAccessRequest(lc) {
+    lc.innerHTML = `<div class="login-spinner"><div class="login-spin-ring"></div><p>Submitting…</p></div>`;
+    try {
+      await _db.collection("users").doc(_fbUser.email.toLowerCase()).set({
+        email: _fbUser.email.toLowerCase(),
+        displayName: _fbUser.displayName || "",
+        photoURL: _fbUser.photoURL || "",
+        status: "pending",
+        token: "",
+        requestedAt: new Date().toISOString()
+      });
+      lc.innerHTML =
+        `<div class="login-status-icon">⏳</div>` +
+        `<h2 class="login-title" style="font-size:1.1rem">Request Submitted!</h2>` +
+        `<p style="font-size:0.85rem;color:var(--muted);margin:0.5rem 0 1.1rem">The admin will review your request. Come back and sign in with Google again to check your status and receive your token.</p>` +
+        `<button type="button" id="back-btn" class="login-btn-ghost">← Back to Login</button>`;
+      lc.querySelector("#back-btn").addEventListener("click", renderLoginMain);
+    } catch (e) {
+      lc.innerHTML =
+        `<p class="login-error" style="display:block;margin-bottom:1rem">Error: ${esc(e.message)}</p>` +
+        `<button type="button" class="login-btn" id="retry-btn">Retry</button>`;
+      lc.querySelector("#retry-btn").addEventListener("click", () => submitAccessRequest(lc));
+    }
+  }
+
+  function renderPending(lc) {
+    lc.innerHTML =
+      `<div class="login-status-icon">⏳</div>` +
+      `<h2 class="login-title" style="font-size:1.1rem">Pending Approval</h2>` +
+      `<p style="font-size:0.85rem;color:var(--muted);margin:0.5rem 0 1.1rem">Your request is under review. Sign in again later to check if it has been approved.</p>` +
+      `<button type="button" id="back-btn" class="login-btn-ghost">← Back</button>`;
+    lc.querySelector("#back-btn").addEventListener("click", renderLoginMain);
+  }
+
+  function renderApproved(lc, data) {
+    lc.innerHTML =
+      `<div class="login-status-icon">✅</div>` +
+      `<h2 class="login-title" style="font-size:1.1rem">Access Approved!</h2>` +
+      `<p style="font-size:0.85rem;color:var(--muted);margin:0.5rem 0 0.5rem">Your personal access token — save this to use on any device:</p>` +
+      `<div class="login-token-display">${esc(data.token)}</div>` +
+      `<p style="font-size:0.75rem;color:var(--muted);margin:0.4rem 0 1rem">Paste this in the "Access token" field on the login screen.</p>` +
+      `<button type="button" id="enter-btn" class="login-btn">Enter App Now →</button>`;
+    lc.querySelector("#enter-btn").addEventListener("click", () => {
+      sessionStorage.setItem(SESSION_KEY, "ok");
+      window.location.reload();
+    });
+  }
+
+  function renderRevoked(lc) {
+    lc.innerHTML =
+      `<div class="login-status-icon">🚫</div>` +
+      `<h2 class="login-title" style="font-size:1.1rem">Access Revoked</h2>` +
+      `<p style="font-size:0.85rem;color:var(--muted);margin:0.5rem 0 1.1rem">Your access has been revoked. Contact the admin to request reinstatement.</p>` +
+      `<button type="button" id="back-btn" class="login-btn-ghost">← Back</button>`;
+    lc.querySelector("#back-btn").addEventListener("click", renderLoginMain);
+  }
+
+  // ── Admin Panel ───────────────────────────────────────────────────
+
+  async function openAdminPanel() {
+    document.getElementById("login-gate").classList.add("hidden");
+    const panel = document.getElementById("view-admin");
+    panel.classList.remove("hidden");
+
+    // Wire top-bar buttons
+    document.getElementById("admin-refresh").addEventListener("click", () => {
+      const active = document.querySelector(".admin-tab.active");
+      if (active) loadAdminTab(active.dataset.tab);
+    });
+    document.getElementById("admin-open-app").addEventListener("click", () => {
+      sessionStorage.setItem(SESSION_KEY, "ok");
+      window.location.reload();
+    });
+    document.getElementById("admin-signout").addEventListener("click", async () => {
+      await _auth.signOut();
+      window.location.reload();
+    });
+
+    // Wire tab buttons
+    document.querySelectorAll(".admin-tab").forEach(btn => {
+      btn.addEventListener("click", () => loadAdminTab(btn.dataset.tab));
+    });
+
+    await loadAdminTab("pending");
+  }
+
+  async function loadAdminTab(tab) {
+    document.querySelectorAll(".admin-tab").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+    const content = document.getElementById("admin-content");
+    content.innerHTML = `<div class="admin-loading">Loading…</div>`;
+    try {
+      let q = _db.collection("users");
+      if (tab !== "all") q = q.where("status", "==", tab);
+      const snap = await q.get();
+      const users = [];
+      snap.forEach(d => users.push(Object.assign({ _id: d.id }, d.data())));
+      users.sort((a, b) => (b.requestedAt || "").localeCompare(a.requestedAt || ""));
+
+      if (!users.length) {
+        content.innerHTML = `<p class="admin-empty">No ${tab} users yet.</p>`;
+        return;
+      }
+
+      content.innerHTML = "";
+      users.forEach(u => {
+        const row = document.createElement("div");
+        row.className = "admin-user-row";
+        const isPending  = u.status === "pending";
+        const isApproved = u.status === "approved";
+        const isRevoked  = u.status === "revoked";
+
+        row.innerHTML =
+          `<div class="admin-user-info">` +
+            (u.photoURL
+              ? `<img src="${esc(u.photoURL)}" class="admin-avatar" />`
+              : `<div class="admin-avatar-ph">👤</div>`) +
+            `<div>` +
+              `<div class="admin-user-name">${esc(u.displayName || u.email)}</div>` +
+              `<div class="admin-user-email">${esc(u.email)}</div>` +
+              `<div class="admin-user-meta">` +
+                (isPending  ? `Requested: ${fmtDate(u.requestedAt)}` : "") +
+                (isApproved ? `Approved: ${fmtDate(u.approvedAt)} &nbsp;·&nbsp; Token: <code class="admin-token">${esc(u.token)}</code>` : "") +
+                (isRevoked  ? `Revoked` : "") +
+              `</div>` +
+            `</div>` +
+          `</div>` +
+          `<div class="admin-user-actions">` +
+            (isPending || isRevoked ? `<button class="admin-btn admin-approve" data-email="${esc(u.email)}">✓ Approve</button>` : "") +
+            (isApproved ? `<button class="admin-btn admin-revoke" data-email="${esc(u.email)}">✗ Revoke</button>` : "") +
+            `<button class="admin-btn admin-delete" data-email="${esc(u.email)}" title="Delete record">🗑</button>` +
+          `</div>`;
+
+        const approveBtn = row.querySelector(".admin-approve");
+        if (approveBtn) {
+          approveBtn.addEventListener("click", async () => {
+            approveBtn.disabled = true; approveBtn.textContent = "…";
+            const token = generateToken();
+            await _db.collection("users").doc(u.email).update({
+              status: "approved", token, approvedAt: new Date().toISOString()
+            });
+            loadAdminTab(tab);
+          });
+        }
+
+        const revokeBtn = row.querySelector(".admin-revoke");
+        if (revokeBtn) {
+          revokeBtn.addEventListener("click", async () => {
+            if (!confirm(`Revoke access for ${u.email}?`)) return;
+            revokeBtn.disabled = true; revokeBtn.textContent = "…";
+            await _db.collection("users").doc(u.email).update({ status: "revoked" });
+            loadAdminTab(tab);
+          });
+        }
+
+        row.querySelector(".admin-delete").addEventListener("click", async () => {
+          if (!confirm(`Permanently delete ${u.email}?`)) return;
+          await _db.collection("users").doc(u.email).delete();
+          loadAdminTab(tab);
+        });
+
+        content.appendChild(row);
+      });
+    } catch (e) {
+      content.innerHTML = `<p class="login-error" style="display:block">Error: ${esc(e.message)}</p>`;
+    }
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────────
+  initFirebase();
+
+  if (isAuthenticated()) {
+    showApp();
+  } else {
+    renderLoginMain();
+    return; // don't boot the app until authenticated
+  }
   // ── Auth passed — boot the full app ─────────────────────────────
 
   const LS_MARKED = "cissp_marked_hard_v1";
