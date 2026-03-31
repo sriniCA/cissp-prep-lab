@@ -8,16 +8,31 @@
 </head>
 <body>
 
-  <!-- Token login gate -->
+  <!-- Token / Google login gate — content rendered by JS -->
   <div id="login-gate">
-    <div class="login-card">
-      <div class="login-logo">🔐</div>
-      <h1 class="login-title">CISSP Prep Lab</h1>
-      <p class="login-sub">Enter your access token to continue</p>
-      <input type="password" id="login-token" class="login-input"
-             placeholder="Access token" maxlength="32" autocomplete="off" />
-      <p id="login-error" class="login-error hidden">Incorrect token — please try again.</p>
-      <button type="button" id="login-submit" class="login-btn">Unlock →</button>
+    <div class="login-card" id="lc"></div>
+  </div>
+
+  <!-- Admin panel — shown instead of #app for the admin account -->
+  <div id="view-admin" class="hidden">
+    <div class="admin-wrap">
+      <div class="admin-topbar">
+        <div class="admin-topbar-left">
+          <span class="admin-logo">🛡️</span>
+          <h1 class="admin-title">Admin Panel</h1>
+        </div>
+        <div class="admin-topbar-right">
+          <button type="button" id="admin-refresh" class="secondary">Refresh</button>
+          <button type="button" id="admin-open-app">Enter App →</button>
+          <button type="button" id="admin-signout" class="secondary">Sign out</button>
+        </div>
+      </div>
+      <div class="admin-tabs">
+        <button type="button" class="admin-tab active" data-tab="pending">⏳ Pending</button>
+        <button type="button" class="admin-tab" data-tab="approved">✅ Approved</button>
+        <button type="button" class="admin-tab" data-tab="revoked">🚫 Revoked</button>
+      </div>
+      <div id="admin-content"></div>
     </div>
   </div>
 
@@ -71,6 +86,10 @@
       <div class="check-row">
         <input type="checkbox" id="mock-hardonly" />
         <label for="mock-hardonly">Draw only from “hard” tagged + your marked-hard set</label>
+      </div>
+      <div class="check-row">
+        <input type="checkbox" id="mock-adaptive" checked />
+        <label for="mock-adaptive">Adaptive (CAT-style) — difficulty rises as you answer correctly, eases when you struggle</label>
       </div>
       <div class="row mt">
         <button type="button" id="mock-start">Begin exam</button>
@@ -150,6 +169,7 @@
       </div>
       <div id="run-progress" class="q-meta"></div>
       <div id="run-live-score" class="run-live-score hidden"></div>
+      <div id="cat-indicator" class="cat-indicator hidden"></div>
       <div id="run-question-block"></div>
       <div class="row mt">
         <button type="button" id="btn-prev" class="secondary hidden">Previous</button>
@@ -239,6 +259,11 @@
     <footer class="app-foot">Marked-hard IDs persist in your browser (localStorage).</footer>
   </div>
 
+  <!-- Firebase SDK (compat) — loaded only when firebase-config.js has real values -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="data/firebase-config.js"></script>
   <script src="data/questions.js"></script>
   <script src="data/concepts.js"></script>
   <script src="app.js"></script>

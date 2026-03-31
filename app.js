@@ -1,9 +1,13 @@
 (function () {
   "use strict";
 
-  // ── Token auth gate ──────────────────────────────────────────────
-  const ACCESS_TOKEN  = "55555";
-  const SESSION_KEY   = "cissp_auth_v1";
+  // ── Auth gate (token + optional Firebase / Google) ───────────────
+  const ACCESS_TOKEN = "55555";
+  const SESSION_KEY  = "cissp_auth_v1";
+  const ADMIN_EMAIL  = ((window.CISSP_ADMIN_EMAIL) || "").toLowerCase();
+
+  // Firebase handles (null when Firebase not configured)
+  let _db = null, _auth = null, _gProvider = null, _fbUser = null;
 
   function isAuthenticated() {
     return sessionStorage.getItem(SESSION_KEY) === "ok";
@@ -11,41 +15,310 @@
 
   function showApp() {
     document.getElementById("login-gate").classList.add("hidden");
+    document.getElementById("view-admin").classList.add("hidden");
     document.getElementById("app").classList.remove("hidden");
   }
 
-  function initLoginGate() {
-    if (isAuthenticated()) { showApp(); return; }
+  function fbReady() { return _db !== null; }
 
-    const tokenInput  = document.getElementById("login-token");
-    const submitBtn   = document.getElementById("login-submit");
-    const errorMsg    = document.getElementById("login-error");
+  function initFirebase() {
+    const cfg = window.FIREBASE_CONFIG;
+    if (!cfg || !cfg.apiKey || cfg.apiKey.startsWith("YOUR_")) return false;
+    if (typeof firebase === "undefined") return false;
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(cfg);
+      _auth      = firebase.auth();
+      _db        = firebase.firestore();
+      _gProvider = new firebase.auth.GoogleAuthProvider();
+      return true;
+    } catch (e) { console.warn("Firebase init:", e); return false; }
+  }
+
+  function generateToken() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let t = "";
+    for (let i = 0; i < 8; i++) t += chars[Math.floor(Math.random() * chars.length)];
+    return t;
+  }
+
+  function esc(s) {
+    return String(s || "")
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  function fmtDate(iso) {
+    try { return new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" }); }
+    catch { return iso || "—"; }
+  }
+
+  // ── Login gate render functions ───────────────────────────────────
+
+  function renderLoginMain() {
+    const lc = document.getElementById("lc");
+    lc.innerHTML =
+      `<div class="login-logo">🔐</div>` +
+      `<h1 class="login-title">CISSP Prep Lab</h1>` +
+      `<p class="login-sub">Enter your access token</p>` +
+      `<input type="password" id="login-token" class="login-input" placeholder="Access token" maxlength="32" autocomplete="off" />` +
+      `<p id="login-error" class="login-error hidden">Incorrect token — please try again.</p>` +
+      `<button type="button" id="login-submit" class="login-btn">Unlock →</button>` +
+      (fbReady()
+        ? `<div class="login-divider"><span>or</span></div>` +
+          `<button type="button" id="login-google" class="login-google-btn">` +
+            `<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="login-google-icon" alt="" />` +
+            `Continue with Google` +
+          `</button>` +
+          `<p class="login-hint">Register or check your access status</p>`
+        : "");
+
+    const inp = lc.querySelector("#login-token");
+    const err = lc.querySelector("#login-error");
 
     function attempt() {
-      if (tokenInput.value.trim() === ACCESS_TOKEN) {
+      if (inp.value.trim() === ACCESS_TOKEN) {
         sessionStorage.setItem(SESSION_KEY, "ok");
-        // Reload so the full app initialises cleanly after auth
         window.location.reload();
       } else {
-        tokenInput.value = "";
-        errorMsg.classList.remove("hidden");
-        tokenInput.classList.add("login-shake");
-        setTimeout(() => tokenInput.classList.remove("login-shake"), 500);
-        tokenInput.focus();
+        inp.value = "";
+        err.classList.remove("hidden");
+        inp.classList.add("login-shake");
+        setTimeout(() => inp.classList.remove("login-shake"), 500);
+        inp.focus();
       }
     }
 
-    submitBtn.addEventListener("click", attempt);
-    tokenInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") attempt();
-    });
+    lc.querySelector("#login-submit").addEventListener("click", attempt);
+    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") attempt(); });
+    inp.focus();
 
-    tokenInput.focus();
-    return; // app code below must not run until authenticated
+    if (fbReady()) {
+      lc.querySelector("#login-google").addEventListener("click", handleGoogleSignIn);
+    }
   }
 
-  initLoginGate();
-  if (!isAuthenticated()) return;
+  async function handleGoogleSignIn() {
+    const lc = document.getElementById("lc");
+    lc.innerHTML = `<div class="login-spinner"><div class="login-spin-ring"></div><p>Signing in…</p></div>`;
+    try {
+      const result = await _auth.signInWithPopup(_gProvider);
+      _fbUser = result.user;
+      const email = _fbUser.email.toLowerCase();
+
+      if (email === ADMIN_EMAIL) {
+        await openAdminPanel();
+        return;
+      }
+
+      const snap = await _db.collection("users").doc(email).get();
+      if (!snap.exists) {
+        renderNewUser(lc);
+      } else {
+        const d = snap.data();
+        if (d.status === "approved") renderApproved(lc, d);
+        else if (d.status === "pending") renderPending(lc);
+        else renderRevoked(lc);
+      }
+    } catch (e) {
+      const lc2 = document.getElementById("lc");
+      lc2.innerHTML =
+        `<div class="login-status-icon">⚠️</div>` +
+        `<p class="login-error" style="display:block;margin-bottom:1rem">Sign-in error: ${esc(e.message)}</p>` +
+        `<button type="button" class="login-btn" id="lr">Try Again</button>`;
+      lc2.querySelector("#lr").addEventListener("click", renderLoginMain);
+    }
+  }
+
+  function renderNewUser(lc) {
+    const name  = esc(_fbUser.displayName || _fbUser.email);
+    const email = esc(_fbUser.email);
+    lc.innerHTML =
+      `<div class="login-status-icon">${_fbUser.photoURL ? `<img src="${esc(_fbUser.photoURL)}" class="login-avatar" />` : "👤"}</div>` +
+      `<p class="login-user-name">${name}</p>` +
+      `<p class="login-hint" style="margin-bottom:0.9rem">${email}</p>` +
+      `<p style="font-size:0.85rem;color:var(--muted);margin:0 0 1rem">No access found. Submit a request — the admin will review it and generate your token.</p>` +
+      `<button type="button" id="req-btn" class="login-btn">Request Access</button>` +
+      `<button type="button" id="back-btn" class="login-btn-ghost">← Back</button>`;
+    lc.querySelector("#req-btn").addEventListener("click", () => submitAccessRequest(lc));
+    lc.querySelector("#back-btn").addEventListener("click", renderLoginMain);
+  }
+
+  async function submitAccessRequest(lc) {
+    lc.innerHTML = `<div class="login-spinner"><div class="login-spin-ring"></div><p>Submitting…</p></div>`;
+    try {
+      await _db.collection("users").doc(_fbUser.email.toLowerCase()).set({
+        email: _fbUser.email.toLowerCase(),
+        displayName: _fbUser.displayName || "",
+        photoURL: _fbUser.photoURL || "",
+        status: "pending",
+        token: "",
+        requestedAt: new Date().toISOString()
+      });
+      lc.innerHTML =
+        `<div class="login-status-icon">⏳</div>` +
+        `<h2 class="login-title" style="font-size:1.1rem">Request Submitted!</h2>` +
+        `<p style="font-size:0.85rem;color:var(--muted);margin:0.5rem 0 1.1rem">The admin will review your request. Come back and sign in with Google again to check your status and receive your token.</p>` +
+        `<button type="button" id="back-btn" class="login-btn-ghost">← Back to Login</button>`;
+      lc.querySelector("#back-btn").addEventListener("click", renderLoginMain);
+    } catch (e) {
+      lc.innerHTML =
+        `<p class="login-error" style="display:block;margin-bottom:1rem">Error: ${esc(e.message)}</p>` +
+        `<button type="button" class="login-btn" id="retry-btn">Retry</button>`;
+      lc.querySelector("#retry-btn").addEventListener("click", () => submitAccessRequest(lc));
+    }
+  }
+
+  function renderPending(lc) {
+    lc.innerHTML =
+      `<div class="login-status-icon">⏳</div>` +
+      `<h2 class="login-title" style="font-size:1.1rem">Pending Approval</h2>` +
+      `<p style="font-size:0.85rem;color:var(--muted);margin:0.5rem 0 1.1rem">Your request is under review. Sign in again later to check if it has been approved.</p>` +
+      `<button type="button" id="back-btn" class="login-btn-ghost">← Back</button>`;
+    lc.querySelector("#back-btn").addEventListener("click", renderLoginMain);
+  }
+
+  function renderApproved(lc, data) {
+    lc.innerHTML =
+      `<div class="login-status-icon">✅</div>` +
+      `<h2 class="login-title" style="font-size:1.1rem">Access Approved!</h2>` +
+      `<p style="font-size:0.85rem;color:var(--muted);margin:0.5rem 0 0.5rem">Your personal access token — save this to use on any device:</p>` +
+      `<div class="login-token-display">${esc(data.token)}</div>` +
+      `<p style="font-size:0.75rem;color:var(--muted);margin:0.4rem 0 1rem">Paste this in the "Access token" field on the login screen.</p>` +
+      `<button type="button" id="enter-btn" class="login-btn">Enter App Now →</button>`;
+    lc.querySelector("#enter-btn").addEventListener("click", () => {
+      sessionStorage.setItem(SESSION_KEY, "ok");
+      window.location.reload();
+    });
+  }
+
+  function renderRevoked(lc) {
+    lc.innerHTML =
+      `<div class="login-status-icon">🚫</div>` +
+      `<h2 class="login-title" style="font-size:1.1rem">Access Revoked</h2>` +
+      `<p style="font-size:0.85rem;color:var(--muted);margin:0.5rem 0 1.1rem">Your access has been revoked. Contact the admin to request reinstatement.</p>` +
+      `<button type="button" id="back-btn" class="login-btn-ghost">← Back</button>`;
+    lc.querySelector("#back-btn").addEventListener("click", renderLoginMain);
+  }
+
+  // ── Admin Panel ───────────────────────────────────────────────────
+
+  async function openAdminPanel() {
+    document.getElementById("login-gate").classList.add("hidden");
+    const panel = document.getElementById("view-admin");
+    panel.classList.remove("hidden");
+
+    // Wire top-bar buttons
+    document.getElementById("admin-refresh").addEventListener("click", () => {
+      const active = document.querySelector(".admin-tab.active");
+      if (active) loadAdminTab(active.dataset.tab);
+    });
+    document.getElementById("admin-open-app").addEventListener("click", () => {
+      sessionStorage.setItem(SESSION_KEY, "ok");
+      window.location.reload();
+    });
+    document.getElementById("admin-signout").addEventListener("click", async () => {
+      await _auth.signOut();
+      window.location.reload();
+    });
+
+    // Wire tab buttons
+    document.querySelectorAll(".admin-tab").forEach(btn => {
+      btn.addEventListener("click", () => loadAdminTab(btn.dataset.tab));
+    });
+
+    await loadAdminTab("pending");
+  }
+
+  async function loadAdminTab(tab) {
+    document.querySelectorAll(".admin-tab").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+    const content = document.getElementById("admin-content");
+    content.innerHTML = `<div class="admin-loading">Loading…</div>`;
+    try {
+      let q = _db.collection("users");
+      if (tab !== "all") q = q.where("status", "==", tab);
+      const snap = await q.get();
+      const users = [];
+      snap.forEach(d => users.push(Object.assign({ _id: d.id }, d.data())));
+      users.sort((a, b) => (b.requestedAt || "").localeCompare(a.requestedAt || ""));
+
+      if (!users.length) {
+        content.innerHTML = `<p class="admin-empty">No ${tab} users yet.</p>`;
+        return;
+      }
+
+      content.innerHTML = "";
+      users.forEach(u => {
+        const row = document.createElement("div");
+        row.className = "admin-user-row";
+        const isPending  = u.status === "pending";
+        const isApproved = u.status === "approved";
+        const isRevoked  = u.status === "revoked";
+
+        row.innerHTML =
+          `<div class="admin-user-info">` +
+            (u.photoURL
+              ? `<img src="${esc(u.photoURL)}" class="admin-avatar" />`
+              : `<div class="admin-avatar-ph">👤</div>`) +
+            `<div>` +
+              `<div class="admin-user-name">${esc(u.displayName || u.email)}</div>` +
+              `<div class="admin-user-email">${esc(u.email)}</div>` +
+              `<div class="admin-user-meta">` +
+                (isPending  ? `Requested: ${fmtDate(u.requestedAt)}` : "") +
+                (isApproved ? `Approved: ${fmtDate(u.approvedAt)} &nbsp;·&nbsp; Token: <code class="admin-token">${esc(u.token)}</code>` : "") +
+                (isRevoked  ? `Revoked` : "") +
+              `</div>` +
+            `</div>` +
+          `</div>` +
+          `<div class="admin-user-actions">` +
+            (isPending || isRevoked ? `<button class="admin-btn admin-approve" data-email="${esc(u.email)}">✓ Approve</button>` : "") +
+            (isApproved ? `<button class="admin-btn admin-revoke" data-email="${esc(u.email)}">✗ Revoke</button>` : "") +
+            `<button class="admin-btn admin-delete" data-email="${esc(u.email)}" title="Delete record">🗑</button>` +
+          `</div>`;
+
+        const approveBtn = row.querySelector(".admin-approve");
+        if (approveBtn) {
+          approveBtn.addEventListener("click", async () => {
+            approveBtn.disabled = true; approveBtn.textContent = "…";
+            const token = generateToken();
+            await _db.collection("users").doc(u.email).update({
+              status: "approved", token, approvedAt: new Date().toISOString()
+            });
+            loadAdminTab(tab);
+          });
+        }
+
+        const revokeBtn = row.querySelector(".admin-revoke");
+        if (revokeBtn) {
+          revokeBtn.addEventListener("click", async () => {
+            if (!confirm(`Revoke access for ${u.email}?`)) return;
+            revokeBtn.disabled = true; revokeBtn.textContent = "…";
+            await _db.collection("users").doc(u.email).update({ status: "revoked" });
+            loadAdminTab(tab);
+          });
+        }
+
+        row.querySelector(".admin-delete").addEventListener("click", async () => {
+          if (!confirm(`Permanently delete ${u.email}?`)) return;
+          await _db.collection("users").doc(u.email).delete();
+          loadAdminTab(tab);
+        });
+
+        content.appendChild(row);
+      });
+    } catch (e) {
+      content.innerHTML = `<p class="login-error" style="display:block">Error: ${esc(e.message)}</p>`;
+    }
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────────
+  initFirebase();
+
+  if (isAuthenticated()) {
+    showApp();
+  } else {
+    renderLoginMain();
+    return; // don't boot the app until authenticated
+  }
   // ── Auth passed — boot the full app ─────────────────────────────
 
   const LS_MARKED = "cissp_marked_hard_v1";
@@ -184,10 +457,16 @@
     timerEnd: null,
     timerId: null,
     totalSeconds: 0,
-    timerTick: null,       // stored so resumeTimer can restart the interval
-    timerPauseStart: null, // Date.now() when paused, null when running
-    timerPausedMs: 0,      // cumulative ms spent paused this session
-    lastByDomain: {}       // stored after finishExam for gap analysis
+    timerTick: null,
+    timerPauseStart: null,
+    timerPausedMs: 0,
+    lastByDomain: {},
+    // ── CAT (adaptive mode) ───────────────────────────────────────
+    adaptive: false,          // true when adaptive mode is active
+    adaptivePool: [],         // remaining unserved questions
+    adaptiveTotal: 0,         // target total question count
+    catTheta: 0.30,           // ability estimate 0.00–1.00 (starts just below medium)
+    catHistory: []            // [{correct, hard}] — last answered questions
   };
 
   function $(id) {
@@ -464,9 +743,17 @@
     const btnSubmit = $("btn-submit");
     const btnFinishStudy = $("btn-finish-study");
     const btnReveal = $("btn-reveal");
-    const isLast = state.index >= state.questions.length - 1;
+    const atLast = state.index >= state.questions.length - 1;
+    // In adaptive mode more questions will be loaded when Next is clicked,
+    // so "last" means: at last AND no more can be served
+    const canServeMore = state.adaptive &&
+      state.questions.length < state.adaptiveTotal &&
+      state.adaptivePool.length > 0;
+    const isLast = atLast && !canServeMore;
 
-    btnPrev.classList.toggle("hidden", state.index === 0 || state.strict);
+    // Prev: hidden in adaptive mode (CAT doesn't allow going back) or at start or strict
+    const hidePrev = state.index === 0 || state.strict || state.adaptive;
+    btnPrev.classList.toggle("hidden", hidePrev);
     btnNext.classList.toggle("hidden", isLast);
     btnSubmit.classList.toggle("hidden", state.mode !== "mock" || !isLast);
     btnFinishStudy.classList.toggle("hidden", state.mode !== "study" || !isLast);
@@ -491,6 +778,7 @@
     }
 
     updateLiveScore();
+    renderCatIndicator();
   }
 
   function goDelta(d) {
@@ -647,6 +935,10 @@
     if (elapsedStr) metaLines.push(`Time used: ${elapsedStr}`);
     if (pausedStr) metaLines.push(`⏸ Timer paused: ${pausedStr} (reviewing answers)`);
     if (revealedCount) metaLines.push(`Answers revealed: ${revealedCount}`);
+    if (state.adaptive) {
+      const { label } = catLevel();
+      metaLines.push(`📈 CAT mode — final level: <strong>${label}</strong> (θ = ${Math.round(state.catTheta * 100)}%)`);
+    }
     metaLines.push(`Pass threshold: ${PASS_PCT}%`);
     meta.innerHTML = metaLines.map(l => `<div>${l}</div>`).join("");
     scoreRight.appendChild(meta);
@@ -1069,21 +1361,40 @@
       const balanced = $("mock-balanced").checked;
       const strict = $("mock-strict").checked;
       const hardOnly = $("mock-hardonly").checked;
+      const adaptive = $("mock-adaptive") ? $("mock-adaptive").checked : false;
 
       const pool = filterPool(bank, { hardOnly });
       if (pool.length < Math.min(5, n)) {
         alert("Not enough questions in the filtered pool. Add items to questions.js or widen filters.");
         return;
       }
-      const picked = pickQuestions(pool, n, balanced);
+
       state.mode = "mock";
-      state.questions = picked;
-      state.answers = picked.map(() => null);
       state.revealed = new Set();
       state.index = 0;
       state.strict = strict;
       state.showExplanation = false;
-      $("run-title").textContent = "Mock exam";
+      state.adaptive = adaptive;
+      state.catTheta = 0.30;
+      state.catHistory = [];
+
+      if (adaptive) {
+        // CAT: give the engine the full shuffled pool; serve questions one-by-one
+        state.adaptivePool = shuffle(pool.slice());
+        state.adaptiveTotal = Math.min(n, state.adaptivePool.length);
+        // Serve the first question
+        const first = selectAdaptiveQuestion();
+        state.questions = first ? [first] : [];
+        state.answers = first ? [null] : [];
+      } else {
+        const picked = pickQuestions(pool, n, balanced);
+        state.questions = picked;
+        state.answers = picked.map(() => null);
+        state.adaptivePool = [];
+        state.adaptiveTotal = 0;
+      }
+
+      $("run-title").textContent = adaptive ? "Mock exam — Adaptive (CAT)" : "Mock exam";
       showView("view-run");
       startTimer(minutes * 60);
       $("btn-mark-hard").classList.remove("hidden");
@@ -1121,7 +1432,26 @@
     });
 
     $("btn-prev").addEventListener("click", () => { resumeTimer(); goDelta(-1); });
-    $("btn-next").addEventListener("click", () => { resumeTimer(); goDelta(1); });
+    $("btn-next").addEventListener("click", () => {
+      resumeTimer();
+      // In adaptive mode, update theta from the current answer before loading the next question
+      if (state.adaptive && state.index === state.questions.length - 1) {
+        const ans = state.answers[state.index];
+        if (ans !== null && ans !== undefined) {
+          const q = state.questions[state.index];
+          updateCatTheta(ans === q.correctIndex, q.hard);
+        }
+        // Load the next adaptive question if target count not yet reached
+        if (state.questions.length < state.adaptiveTotal && state.adaptivePool.length > 0) {
+          const next = selectAdaptiveQuestion();
+          if (next) {
+            state.questions.push(next);
+            state.answers.push(null);
+          }
+        }
+      }
+      goDelta(1);
+    });
 
     $("btn-reveal").addEventListener("click", () => {
       if (state.revealed.has(state.index)) {
@@ -1143,6 +1473,14 @@
       const unanswered = state.answers.some((a) => a === null || a === undefined);
       if (unanswered && !confirm("Some questions are unanswered. Submit anyway?")) return;
       resumeTimer();
+      // Commit theta for the final adaptive question before scoring
+      if (state.adaptive) {
+        const ans = state.answers[state.index];
+        if (ans !== null && ans !== undefined) {
+          const q = state.questions[state.index];
+          updateCatTheta(ans === q.correctIndex, q.hard);
+        }
+      }
       finishExam(false);
     });
 
@@ -1567,6 +1905,85 @@
     $("btn-mark-hard").classList.remove("hidden");
     showView("view-run");
     renderQuestion();
+  }
+
+  // ── CAT (Computerised Adaptive Testing) engine ───────────────────
+
+  /**
+   * Pick the next question from the adaptive pool based on current theta.
+   * theta > 0.5  → prefer hard questions
+   * theta ≤ 0.5  → prefer non-hard questions
+   * Falls back to the other tier when the preferred tier is empty.
+   */
+  function selectAdaptiveQuestion() {
+    if (state.adaptivePool.length === 0) return null;
+    const wantHard = state.catTheta > 0.50;
+    const preferred = state.adaptivePool.filter(q => wantHard ? q.hard : !q.hard);
+    const source = preferred.length > 0 ? preferred : state.adaptivePool;
+    // Pick randomly within preferred tier (avoid pure top-of-list bias)
+    const q = source[Math.floor(Math.random() * source.length)];
+    state.adaptivePool = state.adaptivePool.filter(x => x.id !== q.id);
+    return q;
+  }
+
+  /**
+   * Update ability estimate after an answer.
+   * Correct on hard question  → big gain   (+0.13)
+   * Correct on easy question  → small gain  (+0.07)
+   * Wrong on easy question    → bigger loss (−0.11)
+   * Wrong on hard question    → small loss  (−0.05)
+   */
+  function updateCatTheta(correct, isHard) {
+    if (correct) {
+      state.catTheta = Math.min(1.0, state.catTheta + (isHard ? 0.13 : 0.07));
+    } else {
+      state.catTheta = Math.max(0.0, state.catTheta - (isHard ? 0.05 : 0.11));
+    }
+    state.catHistory.push({ correct, hard: !!isHard });
+  }
+
+  /** Returns {label, cls} for the current theta level. */
+  function catLevel() {
+    const t = state.catTheta;
+    if (t < 0.25) return { label: "Foundational", cls: "cat-lvl-1" };
+    if (t < 0.50) return { label: "Standard",     cls: "cat-lvl-2" };
+    if (t < 0.75) return { label: "Advanced",     cls: "cat-lvl-3" };
+    return              { label: "Expert",         cls: "cat-lvl-4" };
+  }
+
+  /** Render the CAT difficulty indicator bar in #cat-indicator. */
+  function renderCatIndicator() {
+    const ind = $("cat-indicator");
+    if (!ind) return;
+    if (!state.adaptive) { ind.classList.add("hidden"); return; }
+    ind.classList.remove("hidden");
+
+    const { label, cls } = catLevel();
+    const pct = Math.round(state.catTheta * 100);
+    const served = state.questions.length;
+    const total  = state.adaptiveTotal;
+
+    // Sparkline: last 10 history items (filled from right)
+    const recentHistory = state.catHistory.slice(-10);
+    const dots = recentHistory.map(h => {
+      const outcome = h.correct ? "cat-dot-ok" : "cat-dot-bad";
+      const size    = h.hard    ? "cat-dot-lg" : "cat-dot-sm";
+      const tip     = (h.hard ? "Hard" : "Std") + " — " + (h.correct ? "✓" : "✗");
+      return `<span class="cat-dot ${outcome} ${size}" title="${tip}"></span>`;
+    }).join("");
+
+    ind.innerHTML =
+      `<div class="cat-row">` +
+        `<span class="cat-label">Adaptive Level</span>` +
+        `<span class="cat-badge ${cls}">${label}</span>` +
+        `<div class="cat-bar-wrap" title="Ability estimate: ${pct}%">` +
+          `<div class="cat-bar-fill ${cls}" style="width:${pct}%"></div>` +
+        `</div>` +
+        `<span class="cat-count">${served}/${total}</span>` +
+        (recentHistory.length > 0
+          ? `<span class="cat-spark">${dots}</span>`
+          : "") +
+      `</div>`;
   }
 
   bind();

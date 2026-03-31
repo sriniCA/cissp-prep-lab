@@ -15,6 +15,111 @@
 }
 
 /* ── Login gate ─────────────────────────────────────────────────── */
+/* --- Google sign-in button --- */
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 1rem 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.login-divider::before,
+.login-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.login-google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.62rem 1rem;
+  background: #fff;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  color: #3c4043;
+  font-size: 0.9rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.14s, box-shadow 0.14s;
+}
+.login-google-btn:hover {
+  background: #f8f9fa;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+.login-google-icon { width: 18px; height: 18px; }
+
+.login-hint {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 0.4rem 0 0;
+  text-align: center;
+}
+
+/* --- Status screens after Google sign-in --- */
+.login-status-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+.login-status-icon img.login-avatar {
+  width: 56px; height: 56px; border-radius: 50%;
+}
+.login-user-name { font-weight: 700; font-size: 0.95rem; margin: 0 0 0.1rem; }
+
+.login-token-display {
+  background: var(--bg);
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+  margin: 0.25rem 0;
+  font-family: monospace;
+}
+
+.login-btn-ghost {
+  display: block;
+  width: 100%;
+  padding: 0.55rem;
+  margin-top: 0.5rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.14s;
+}
+.login-btn-ghost:hover { background: var(--surface-hover); }
+
+/* --- Spinner --- */
+.login-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+.login-spin-ring {
+  width: 32px; height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 #login-gate {
   position: fixed;
   inset: 0;
@@ -1208,7 +1313,6 @@ footer.app-foot {
 .lscore-warn { background: #352a10; color: var(--warning); }
 .lscore-fail { background: #3a2222; color: var(--danger);  }
 
-/* (Admin panel styles live in v2 only) */
 /* ── Admin Panel ────────────────────────────────────────────────── */
 #view-admin {
   min-height: 100vh;
@@ -1591,3 +1695,85 @@ footer.app-foot {
   font-weight: 600;
   line-height: 1.7;
 }
+
+/* ── CAT Adaptive Indicator ────────────────────────────────────── */
+.cat-indicator {
+  margin-bottom: 0.55rem;
+}
+.cat-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.45rem 0.75rem;
+  background: rgba(99,102,241,0.07);
+  border: 1px solid rgba(99,102,241,0.2);
+  border-radius: 8px;
+}
+.cat-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+}
+/* Level badge — 4 tiers */
+.cat-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.18rem 0.55rem;
+  border-radius: 20px;
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+}
+.cat-lvl-1 { background: rgba(99,102,241,0.14); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); }
+.cat-lvl-2 { background: rgba(34,197,94,0.12);  color: #86efac; border: 1px solid rgba(34,197,94,0.3);  }
+.cat-lvl-3 { background: rgba(251,146,60,0.14); color: #fdba74; border: 1px solid rgba(251,146,60,0.3); }
+.cat-lvl-4 { background: rgba(239,68,68,0.14);  color: #fca5a5; border: 1px solid rgba(239,68,68,0.3);  }
+
+/* Theta progress bar */
+.cat-bar-wrap {
+  flex: 1;
+  min-width: 70px;
+  max-width: 140px;
+  height: 6px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.cat-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+.cat-bar-fill.cat-lvl-1 { background: #818cf8; }
+.cat-bar-fill.cat-lvl-2 { background: #4ade80; }
+.cat-bar-fill.cat-lvl-3 { background: #fb923c; }
+.cat-bar-fill.cat-lvl-4 { background: #f87171; }
+
+/* Question count */
+.cat-count {
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sparkline dots */
+.cat-spark {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 0.2rem;
+}
+.cat-dot {
+  display: inline-block;
+  border-radius: 50%;
+  transition: transform 0.15s;
+}
+.cat-dot-sm { width: 7px;  height: 7px; }
+.cat-dot-lg { width: 10px; height: 10px; }
+.cat-dot-ok  { background: #4ade80; box-shadow: 0 0 4px rgba(74,222,128,0.5); }
+.cat-dot-bad { background: #f87171; box-shadow: 0 0 4px rgba(248,113,113,0.5); }
+.cat-dot:hover { transform: scale(1.4); }
