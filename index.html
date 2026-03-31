@@ -173,6 +173,24 @@
       <div id="run-live-score" class="run-live-score hidden"></div>
       <div id="cat-indicator" class="cat-indicator hidden"></div>
       <div id="run-question-block"></div>
+
+      <!-- Voice interactive panel -->
+      <div id="voice-panel" class="voice-panel hidden">
+        <div class="voice-status-bar vs-idle" id="voice-status-bar">
+          <span class="vs-ring" id="vs-ring"></span>
+          <span id="vs-icon">&#x1F399;</span>
+          <span id="vs-text">Ready — click a button below to start</span>
+          <span id="vs-transcript" class="vs-transcript"></span>
+        </div>
+        <div class="voice-btn-row">
+          <button type="button" id="btn-voice-rl">&#x25B6; Read &amp; Answer</button>
+          <button type="button" id="btn-voice-read" class="secondary">&#x1F50A; Read Only</button>
+          <button type="button" id="btn-voice-listen" class="secondary">&#x1F3A4; Listen</button>
+          <button type="button" id="btn-voice-stop" class="secondary voice-stop-btn">&#x23F9; Stop</button>
+        </div>
+        <p class="voice-help">Works in Chrome, Edge &amp; Safari. Say <strong>A</strong>, <strong>B</strong>, <strong>C</strong>, or <strong>D</strong> when listening.</p>
+      </div>
+
       <div class="row mt">
         <button type="button" id="btn-prev" class="secondary hidden">Previous</button>
         <button type="button" id="btn-next">Next</button>
@@ -182,6 +200,7 @@
       <div class="row mt">
         <button type="button" id="btn-reveal" class="reveal-btn">Show Answer &amp; Explanation</button>
         <button type="button" id="btn-mark-hard" class="secondary">Mark as hard for me</button>
+        <button type="button" id="btn-toggle-voice" class="secondary voice-toggle-btn" title="Toggle voice mode">&#x1F399; Voice</button>
         <button type="button" id="btn-abort" class="secondary">Exit</button>
       </div>
     </section>
