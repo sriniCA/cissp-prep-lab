@@ -262,25 +262,33 @@
     <section id="view-jobs" class="hidden">
       <div class="jobs-topbar">
         <button type="button" id="jobs-back" class="secondary">← Back</button>
-        <h2 style="margin:0;font-size:1.15rem;font-weight:700">CISSP Job Search</h2>
+        <h2 style="margin:0;font-size:1.15rem;font-weight:700">CISSP Job Listings</h2>
+        <span id="jobs-live-badge" class="jobs-live-badge hidden">&#x1F7E2; Live</span>
       </div>
 
-      <!-- Filters -->
-      <div class="jobs-filters panel">
-        <div class="jobs-filter-grid">
-          <div class="field">
-            <span class="label-text">Location</span>
-            <input type="text" id="job-location" placeholder="Remote, New York NY, USA…" />
-          </div>
-          <div class="field">
-            <span class="label-text">Job type</span>
-            <select id="job-type">
-              <option value="">All types</option>
-              <option value="remote">Remote</option>
-              <option value="fulltime">Full-time</option>
-              <option value="contract">Contract / Consulting</option>
-            </select>
-          </div>
+      <!-- Search bar -->
+      <div class="jobs-search-panel panel">
+        <div class="jobs-search-row">
+          <input type="text" id="job-keyword" placeholder="Role: Security Architect, GRC Analyst, SOC…" value="CISSP" />
+          <input type="text" id="job-location" placeholder="Location (optional)" />
+          <select id="job-type">
+            <option value="">All types</option>
+            <option value="remote">Remote</option>
+            <option value="full_time">Full-time</option>
+            <option value="contract">Contract</option>
+          </select>
+          <button type="button" id="btn-search-jobs">&#x1F50D; Find Jobs</button>
+        </div>
+        <p class="jobs-api-note">Live listings pulled from <strong>Remotive</strong>, <strong>Jobicy</strong> and <strong>Arbeitnow</strong>. For LinkedIn / Dice searches use the portal links below.</p>
+      </div>
+
+      <!-- Live job results injected here -->
+      <div id="jobs-results-area"></div>
+
+      <!-- Portal deep links (collapsible) -->
+      <details class="panel jobs-portals-details">
+        <summary>&#x1F517; Also search on LinkedIn, Dice &amp; more portals</summary>
+        <div class="jobs-filter-grid" style="margin:0.75rem 0 0.5rem">
           <div class="field">
             <span class="label-text">Role focus</span>
             <select id="job-role">
@@ -297,19 +305,13 @@
             </select>
           </div>
         </div>
-        <p class="jobs-note">Searches open each portal in a new tab with your filters pre-applied. Live results are served directly by the portal.</p>
-      </div>
+        <div id="jobs-portal-grid" class="jobs-portal-grid"></div>
+        <h4 class="jobs-section-head" style="margin-top:0.85rem">Quick role searches (opens top 3 portals)</h4>
+        <div id="jobs-quick-row" class="jobs-quick-row"></div>
+      </details>
 
-      <!-- Portal cards -->
-      <h3 class="jobs-section-head">Job Portals</h3>
-      <div id="jobs-portal-grid" class="jobs-portal-grid"></div>
-
-      <!-- Quick searches -->
-      <h3 class="jobs-section-head">Quick Role Searches</h3>
-      <div id="jobs-quick-row" class="jobs-quick-row"></div>
-
-      <!-- Saved job tracker -->
-      <div class="panel" style="margin-top:1.5rem">
+      <!-- Job tracker -->
+      <div class="panel" style="margin-top:1rem">
         <div class="row spread mb">
           <h3 style="margin:0">&#x1F4CB; My Job Tracker</h3>
           <button type="button" id="btn-add-saved-job" class="secondary">+ Track a job</button>

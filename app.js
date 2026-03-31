@@ -1920,180 +1920,393 @@
   // ── Jobs view ────────────────────────────────────────────────────
 
   const JOB_PORTALS = [
-    { id: "linkedin",     name: "LinkedIn",       icon: "in",  color: "#0077b5", desc: "Largest professional network — biggest CISSP job pool",
-      url: (t, loc, type) => `https://www.linkedin.com/jobs/search/?keywords=${enc(t)}&location=${enc(loc)}${type === "remote" ? "&f_WT=2" : type === "fulltime" ? "&f_WT=1" : ""}` },
-    { id: "dice",         name: "Dice",            icon: "D",   color: "#e3571e", desc: "Tech & cybersecurity specialist board",
-      url: (t, loc)       => `https://www.dice.com/jobs?q=${enc(t)}&location=${enc(loc)}` },
-    { id: "indeed",       name: "Indeed",          icon: "in",  color: "#2164f3", desc: "Largest general job board worldwide",
-      url: (t, loc, type) => `https://www.indeed.com/jobs?q=${enc(t)}&l=${enc(loc)}${type === "remote" ? "&remotejob=032b3046-06a3-4876-8dfd-474eb5e7ed11" : ""}` },
-    { id: "usajobs",      name: "USAJobs",         icon: "USA", color: "#004c97", desc: "U.S. federal government security positions",
-      url: (t, loc)       => `https://www.usajobs.gov/Search/Results?k=${enc(t)}&l=${enc(loc)}` },
-    { id: "clearance",    name: "ClearanceJobs",   icon: "CJ",  color: "#0055a5", desc: "Security clearance & cleared CISSP roles",
-      url: (t, loc)       => `https://www.clearancejobs.com/jobs?q=${enc(t)}&location=${enc(loc)}` },
-    { id: "glassdoor",    name: "Glassdoor",       icon: "G",   color: "#0caa41", desc: "Jobs with salary & company reviews",
-      url: (t, loc)       => `https://www.glassdoor.com/Job/${enc(t.replace(/ /g, "-"))}-jobs-SRCH_KO0,${t.length}.htm?locT=C&locId=1&locKeyword=${enc(loc)}` },
-    { id: "monster",      name: "Monster",         icon: "M",   color: "#6e45e1", desc: "Broad reach across industries",
-      url: (t, loc)       => `https://www.monster.com/jobs/search?q=${enc(t)}&where=${enc(loc)}` },
-    { id: "ziprecruiter", name: "ZipRecruiter",    icon: "Z",   color: "#4a90d9", desc: "AI-matched CISSP opportunities",
-      url: (t, loc)       => `https://www.ziprecruiter.com/candidate/search?search=${enc(t)}&location=${enc(loc)}` },
-    { id: "cyberseek",    name: "CyberSeek",       icon: "CS",  color: "#00b4d8", desc: "Cybersecurity career pathway & heat map",
-      url: ()             => `https://www.cyberseek.org/heatmap.html` },
-    { id: "infosecjobs",  name: "InfoSec Jobs",    icon: "IS",  color: "#c0392b", desc: "Dedicated information security job board",
-      url: (t, loc)       => `https://www.infosec-jobs.com/?q=${enc(t)}&location=${enc(loc)}` },
-    { id: "simplyhired",  name: "SimplyHired",     icon: "SH",  color: "#5c35c2", desc: "Aggregates listings from many sources",
-      url: (t, loc)       => `https://www.simplyhired.com/search?q=${enc(t)}&l=${enc(loc)}` },
-    { id: "wellfound",    name: "Wellfound",       icon: "WF",  color: "#1c2b33", desc: "Startup & tech security roles",
-      url: (t)            => `https://wellfound.com/jobs?q=${enc(t)}` },
+    { id:"linkedin",   name:"LinkedIn",     abbr:"in", color:"#0077b5", desc:"Largest CISSP job pool worldwide",
+      url:(t,loc,tp)=>`https://www.linkedin.com/jobs/search/?keywords=${enc(t)}&location=${enc(loc)}${tp==="remote"?"&f_WT=2":tp==="full_time"?"&f_WT=1":""}` },
+    { id:"dice",       name:"Dice",         abbr:"D",  color:"#e3571e", desc:"Tech & cybersecurity specialist board",
+      url:(t,loc)=>`https://www.dice.com/jobs?q=${enc(t)}&location=${enc(loc)}` },
+    { id:"indeed",     name:"Indeed",       abbr:"In", color:"#2164f3", desc:"Largest general job board worldwide",
+      url:(t,loc)=>`https://www.indeed.com/jobs?q=${enc(t)}&l=${enc(loc)}` },
+    { id:"usajobs",    name:"USAJobs",      abbr:"USA",color:"#004c97", desc:"U.S. federal government positions",
+      url:(t,loc)=>`https://www.usajobs.gov/Search/Results?k=${enc(t)}&l=${enc(loc)}` },
+    { id:"clearance",  name:"ClearanceJobs",abbr:"CJ", color:"#0055a5", desc:"Cleared & security-clearance roles",
+      url:(t,loc)=>`https://www.clearancejobs.com/jobs?q=${enc(t)}&location=${enc(loc)}` },
+    { id:"glassdoor",  name:"Glassdoor",    abbr:"G",  color:"#0caa41", desc:"Jobs with salary & company reviews",
+      url:(t,loc)=>`https://www.glassdoor.com/Job/${enc(t.replace(/ /g,"-"))}-jobs-SRCH_KO0,${t.length}.htm` },
+    { id:"monster",    name:"Monster",      abbr:"M",  color:"#6e45e1", desc:"Broad reach across industries",
+      url:(t,loc)=>`https://www.monster.com/jobs/search?q=${enc(t)}&where=${enc(loc)}` },
+    { id:"ziprecruiter",name:"ZipRecruiter",abbr:"Z",  color:"#4a90d9", desc:"AI-matched opportunities",
+      url:(t,loc)=>`https://www.ziprecruiter.com/candidate/search?search=${enc(t)}&location=${enc(loc)}` },
+    { id:"cyberseek",  name:"CyberSeek",    abbr:"CS", color:"#00b4d8", desc:"Cybersecurity career heat map",
+      url:()=>`https://www.cyberseek.org/heatmap.html` },
+    { id:"infosecjobs",name:"InfoSec Jobs", abbr:"IS", color:"#c0392b", desc:"Dedicated InfoSec board",
+      url:(t,loc)=>`https://www.infosec-jobs.com/?q=${enc(t)}&location=${enc(loc)}` },
   ];
 
   const QUICK_SEARCHES = [
-    "CISSP Security Architect", "SOC Analyst CISSP", "GRC Compliance Analyst CISSP",
-    "Cloud Security Engineer CISSP", "Penetration Tester CISSP", "CISSP Security Manager",
-    "DevSecOps Engineer CISSP", "CISO Chief Information Security Officer", "IAM Engineer CISSP",
-    "Incident Response CISSP",
+    "CISSP Security Architect","SOC Analyst CISSP","GRC Compliance Analyst CISSP",
+    "Cloud Security Engineer CISSP","Penetration Tester CISSP","CISSP Security Manager",
+    "DevSecOps Engineer CISSP","CISO Chief Information Security Officer",
+    "IAM Engineer CISSP","Incident Response CISSP",
   ];
 
-  function enc(s) { return encodeURIComponent(s || ""); }
+  function enc(s){ return encodeURIComponent(s||""); }
 
   const LS_SAVED_JOBS = "cissp_saved_jobs_v1";
-  function loadSavedJobs() {
-    try { const r = localStorage.getItem(LS_SAVED_JOBS); return r ? JSON.parse(r) : []; } catch { return []; }
-  }
-  function persistSavedJobs(list) { localStorage.setItem(LS_SAVED_JOBS, JSON.stringify(list)); }
+  function loadSavedJobs(){ try{ const r=localStorage.getItem(LS_SAVED_JOBS); return r?JSON.parse(r):[]; }catch{ return []; } }
+  function persistSavedJobs(list){ localStorage.setItem(LS_SAVED_JOBS,JSON.stringify(list)); }
 
   const JOB_STATUS_META = {
-    bookmarked: { label: "Bookmarked", cls: "jstatus-book" },
-    applied:    { label: "Applied",    cls: "jstatus-applied" },
-    screening:  { label: "Screening",  cls: "jstatus-screen" },
-    interview:  { label: "Interview",  cls: "jstatus-interview" },
-    offer:      { label: "Offer 🎉",   cls: "jstatus-offer" },
-    rejected:   { label: "Rejected",   cls: "jstatus-rejected" },
+    bookmarked:{ label:"Bookmarked", cls:"jstatus-book" },
+    applied:   { label:"Applied",    cls:"jstatus-applied" },
+    screening: { label:"Screening",  cls:"jstatus-screen" },
+    interview: { label:"Interview",  cls:"jstatus-interview" },
+    offer:     { label:"Offer \uD83C\uDF89", cls:"jstatus-offer" },
+    rejected:  { label:"Rejected",   cls:"jstatus-rejected" },
   };
 
-  function renderJobsView() {
-    // Back button
-    const back = $("jobs-back");
-    if (back && !back.dataset.wired) {
-      back.dataset.wired = "1";
-      back.addEventListener("click", () => showView("view-home"));
+  // ── Live job fetching from free public APIs ───────────────────────
+  const SEC_KW = ["security","cyber","cissp","infosec","soc","iam","grc","pentest",
+                  "vulnerability","compliance","risk","devsecops","forensic","cryptograph"];
+
+  function isSecRole(title, tags){
+    const txt = (title+" "+(Array.isArray(tags)?tags.join(" "):tags||"")).toLowerCase();
+    return SEC_KW.some(k=>txt.includes(k));
+  }
+
+  async function fetchCISSPJobs(keyword, jobType){
+    const allJobs=[], errors=[];
+    keyword = (keyword||"CISSP").trim();
+
+    const sources = [
+      {
+        name:"Remotive", color:"#5f27cd",
+        url:`https://remotive.com/api/remote-jobs?search=${enc(keyword)}&limit=30`,
+        map(data){
+          return (data.jobs||[]).map(j=>({
+            id:`rem-${j.id}`, title:j.title, company:j.company_name||"",
+            location:j.candidate_required_location||"Remote", url:j.url,
+            source:"Remotive", sourceColor:"#5f27cd",
+            date:(j.publication_date||"").split("T")[0],
+            salary:j.salary||"", type:j.job_type||"",
+            tags:(j.tags||"").split(",").map(t=>t.trim()).filter(Boolean).slice(0,5),
+          }));
+        }
+      },
+      {
+        name:"Jobicy", color:"#0096c7",
+        url:`https://jobicy.com/api/v2/remote-jobs?count=30&tag=cybersecurity`,
+        map(data){
+          return (data.jobs||[]).map(j=>({
+            id:`jcy-${j.id}`, title:j.jobTitle, company:j.companyName||"",
+            location:j.jobGeo||"Remote", url:j.url,
+            source:"Jobicy", sourceColor:"#0096c7",
+            date:(j.pubDate||"").split(" ")[0],
+            salary:j.annualSalaryMin?`$${Number(j.annualSalaryMin).toLocaleString()}\u2013$${Number(j.annualSalaryMax).toLocaleString()}`:"",
+            type:j.jobType||"",
+            tags:[j.jobIndustry,j.jobCategory].filter(Boolean).slice(0,3),
+          }));
+        }
+      },
+      {
+        name:"Arbeitnow", color:"#f77f00",
+        url:`https://arbeitnow.com/api/job-board-api`,
+        map(data){
+          return (data.data||[])
+            .filter(j=>isSecRole(j.title,j.tags))
+            .slice(0,25)
+            .map(j=>({
+              id:`abn-${j.slug}`, title:j.title, company:j.company_name||"",
+              location:j.location||"Remote", url:j.url,
+              source:"Arbeitnow", sourceColor:"#f77f00",
+              date:j.created_at?new Date(j.created_at*1000).toISOString().split("T")[0]:"",
+              salary:"", type:(j.job_types||[]).join(", "),
+              tags:(j.tags||[]).slice(0,4),
+            }));
+        }
+      },
+    ];
+
+    await Promise.allSettled(sources.map(async src=>{
+      try{
+        const r=await fetch(src.url);
+        if(!r.ok) throw new Error("HTTP "+r.status);
+        const data=await r.json();
+        allJobs.push(...src.map(data));
+      }catch(e){ errors.push(src.name); }
+    }));
+
+    // Filter by keyword (client-side refinement)
+    let results=allJobs;
+    const kw=keyword.toLowerCase();
+    const kwFiltered=allJobs.filter(j=>
+      j.title.toLowerCase().includes(kw)||
+      j.company.toLowerCase().includes(kw)||
+      (j.tags||[]).some(t=>t.toLowerCase().includes(kw))
+    );
+    if(kwFiltered.length>0) results=kwFiltered;
+
+    // Filter by job type
+    if(jobType){
+      const ft=jobType.toLowerCase();
+      const typed=results.filter(j=>
+        (j.type||"").toLowerCase().includes(ft)||
+        (ft==="remote"&&(j.location||"").toLowerCase().includes("remote"))
+      );
+      if(typed.length>0) results=typed;
     }
 
-    // Portal grid
-    const grid = $("jobs-portal-grid");
-    grid.innerHTML = "";
-    JOB_PORTALS.forEach(p => {
-      const card = document.createElement("div");
-      card.className = "jobs-portal-card";
-      card.innerHTML =
-        `<div class="jpc-icon" style="background:${p.color}">${p.icon}</div>` +
-        `<div class="jpc-info"><div class="jpc-name">${p.name}</div><div class="jpc-desc">${p.desc}</div></div>` +
-        `<button type="button" class="jpc-btn">Search &rarr;</button>`;
-      card.querySelector(".jpc-btn").addEventListener("click", () => {
-        const title = $("job-role").value || "CISSP";
-        const loc   = $("job-location").value.trim();
-        const type  = $("job-type").value;
-        window.open(p.url(title, loc, type), "_blank", "noopener");
-      });
-      grid.appendChild(card);
+    // Deduplicate by title+company
+    const seen=new Set();
+    results=results.filter(j=>{
+      const key=(j.title+"|"+j.company).toLowerCase();
+      if(seen.has(key)) return false;
+      seen.add(key); return true;
     });
 
-    // Quick searches row
-    const qrow = $("jobs-quick-row");
-    qrow.innerHTML = "";
-    QUICK_SEARCHES.forEach(qs => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "jobs-quick-btn";
-      btn.textContent = qs;
-      btn.addEventListener("click", () => {
-        const loc  = $("job-location").value.trim();
-        const type = $("job-type").value;
-        // Open the first 3 portals simultaneously
-        [JOB_PORTALS[0], JOB_PORTALS[1], JOB_PORTALS[2]].forEach(p =>
-          window.open(p.url(qs, loc, type), "_blank", "noopener")
-        );
-      });
-      qrow.appendChild(btn);
-    });
+    // Sort newest first
+    results.sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    return {jobs:results, errors};
+  }
 
-    // Job tracker
-    const addBtn = $("btn-add-saved-job");
-    const form = $("add-job-form");
-    if (addBtn && !addBtn.dataset.wired) {
-      addBtn.dataset.wired = "1";
-      addBtn.addEventListener("click", () => form.classList.toggle("hidden"));
-      $("aj-cancel").addEventListener("click", () => form.classList.add("hidden"));
-      $("aj-save").addEventListener("click", () => {
-        const title = $("aj-title").value.trim();
-        if (!title) { alert("Please enter a job title."); return; }
-        const list = loadSavedJobs();
+  function timeAgo(dateStr){
+    if(!dateStr) return "";
+    const diff=Math.floor((Date.now()-new Date(dateStr))/(1000*60*60*24));
+    if(diff===0) return "Today";
+    if(diff===1) return "Yesterday";
+    if(diff<7)   return diff+"d ago";
+    if(diff<31)  return Math.floor(diff/7)+"w ago";
+    return Math.floor(diff/30)+"mo ago";
+  }
+
+  function renderJobCards(jobs, errors){
+    const area=$("jobs-results-area");
+    area.innerHTML="";
+
+    if(errors.length>0 && jobs.length===0){
+      area.innerHTML=
+        `<div class="jobs-error-banner">Could not reach job APIs (${errors.join(", ")}). `+
+        `Use the portal links below to search on LinkedIn, Dice, and Indeed directly.</div>`;
+      return;
+    }
+
+    const badge=$("jobs-live-badge");
+    if(badge) badge.classList.remove("hidden");
+
+    // Source summary strip
+    const sources=[...new Set(jobs.map(j=>j.source))];
+    const strip=document.createElement("div");
+    strip.className="jobs-source-strip";
+    strip.innerHTML=
+      `<span class="jss-count"><strong>${jobs.length}</strong> CISSP-related jobs</span>`+
+      sources.map(s=>`<span class="jss-src">${s}</span>`).join("")+
+      (errors.length?`<span class="jss-err">${errors.join(", ")} unavailable</span>`:"")+
+      `<span class="jss-note">Remote &amp; global listings — add location filter to portals below for on-site roles</span>`;
+    area.appendChild(strip);
+
+    if(jobs.length===0){
+      const empty=document.createElement("div");
+      empty.className="jobs-empty";
+      empty.innerHTML="No matching jobs found. Try a broader keyword or use the portal links below.";
+      area.appendChild(empty);
+      return;
+    }
+
+    const grid=document.createElement("div");
+    grid.className="jobs-card-grid";
+
+    jobs.forEach(job=>{
+      const card=document.createElement("div");
+      card.className="job-card";
+      const age=timeAgo(job.date);
+      const salaryHtml=job.salary?`<span class="jc-salary">${job.salary}</span>`:"";
+      const typeHtml=job.type?`<span class="jc-type">${job.type}</span>`:"";
+      const tagsHtml=(job.tags||[]).length
+        ?`<div class="jc-tags">${job.tags.slice(0,4).map(t=>`<span class="jc-tag">${t}</span>`).join("")}</div>`:"";
+
+      card.innerHTML=
+        `<div class="jc-header">`+
+          `<div class="jc-title">${job.title}</div>`+
+          `<a href="${job.url}" target="_blank" rel="noopener" class="jc-apply-btn">View Job \u2197</a>`+
+        `</div>`+
+        `<div class="jc-meta">`+
+          `<span class="jc-company">${job.company||"\u2014"}</span>`+
+          `<span class="jc-dot">\u00B7</span>`+
+          `<span class="jc-location">\uD83D\uDCCD ${job.location}</span>`+
+        `</div>`+
+        `<div class="jc-details">`+
+          salaryHtml+typeHtml+
+          (age?`<span class="jc-age">${age}</span>`:"")+
+          `<span class="jc-source-badge" style="background:${job.sourceColor}20;color:${job.sourceColor};border:1px solid ${job.sourceColor}40">${job.source}</span>`+
+          `<button type="button" class="jc-track-btn" title="Track this job">+ Track</button>`+
+        `</div>`+
+        tagsHtml;
+
+      // Wire Track button
+      card.querySelector(".jc-track-btn").addEventListener("click",()=>{
+        const list=loadSavedJobs();
+        if(list.some(j=>j.url===job.url)){ alert("Already in your tracker."); return; }
         list.unshift({
-          id: Date.now().toString(),
-          title,
-          company: $("aj-company").value.trim(),
-          source:  $("aj-source").value.trim(),
-          status:  $("aj-status").value,
-          url:     $("aj-url").value.trim(),
-          notes:   $("aj-notes").value.trim(),
-          added:   new Date().toLocaleDateString(),
+          id:Date.now().toString(), title:job.title, company:job.company,
+          source:job.source, status:"bookmarked", url:job.url,
+          notes:"", added:new Date().toLocaleDateString(),
         });
         persistSavedJobs(list);
-        ["aj-title","aj-company","aj-source","aj-url","aj-notes"].forEach(id => { $(id).value = ""; });
+        card.querySelector(".jc-track-btn").textContent="\u2713 Tracked";
+        card.querySelector(".jc-track-btn").disabled=true;
+        renderSavedJobsList();
+      });
+
+      grid.appendChild(card);
+    });
+    area.appendChild(grid);
+  }
+
+  function renderJobsView(){
+    // Wire Back button
+    const back=$("jobs-back");
+    if(back&&!back.dataset.wired){
+      back.dataset.wired="1";
+      back.addEventListener("click",()=>showView("view-home"));
+    }
+
+    // Wire Search button
+    const searchBtn=$("btn-search-jobs");
+    if(searchBtn&&!searchBtn.dataset.wired){
+      searchBtn.dataset.wired="1";
+      searchBtn.addEventListener("click",()=>doJobSearch());
+      $("job-keyword").addEventListener("keydown",e=>{ if(e.key==="Enter") doJobSearch(); });
+    }
+
+    // Portal grid (inside the <details>)
+    const grid=$("jobs-portal-grid");
+    if(grid&&!grid.dataset.rendered){
+      grid.dataset.rendered="1";
+      JOB_PORTALS.forEach(p=>{
+        const card=document.createElement("div");
+        card.className="jobs-portal-card";
+        card.innerHTML=
+          `<div class="jpc-icon" style="background:${p.color}">${p.abbr}</div>`+
+          `<div class="jpc-info"><div class="jpc-name">${p.name}</div><div class="jpc-desc">${p.desc}</div></div>`+
+          `<button type="button" class="jpc-btn">Search \u2192</button>`;
+        card.querySelector(".jpc-btn").addEventListener("click",()=>{
+          const title=($("job-role")||{value:"CISSP"}).value||"CISSP";
+          const loc  =($("job-location")||{value:""}).value.trim();
+          const type =($("job-type")||{value:""}).value;
+          window.open(p.url(title,loc,type),"_blank","noopener");
+        });
+        grid.appendChild(card);
+      });
+
+      const qrow=$("jobs-quick-row");
+      if(qrow){
+        QUICK_SEARCHES.forEach(qs=>{
+          const btn=document.createElement("button");
+          btn.type="button"; btn.className="jobs-quick-btn"; btn.textContent=qs;
+          btn.addEventListener("click",()=>{
+            const loc=($("job-location")||{value:""}).value.trim();
+            const tp =($("job-type")||{value:""}).value;
+            [JOB_PORTALS[0],JOB_PORTALS[1],JOB_PORTALS[2]].forEach(p=>
+              window.open(p.url(qs,loc,tp),"_blank","noopener")
+            );
+          });
+          qrow.appendChild(btn);
+        });
+      }
+    }
+
+    // Job tracker
+    const addBtn=$("btn-add-saved-job");
+    const form=$("add-job-form");
+    if(addBtn&&!addBtn.dataset.wired){
+      addBtn.dataset.wired="1";
+      addBtn.addEventListener("click",()=>form.classList.toggle("hidden"));
+      $("aj-cancel").addEventListener("click",()=>form.classList.add("hidden"));
+      $("aj-save").addEventListener("click",()=>{
+        const title=$("aj-title").value.trim();
+        if(!title){ alert("Please enter a job title."); return; }
+        const list=loadSavedJobs();
+        list.unshift({
+          id:Date.now().toString(), title,
+          company:$("aj-company").value.trim(), source:$("aj-source").value.trim(),
+          status:$("aj-status").value, url:$("aj-url").value.trim(),
+          notes:$("aj-notes").value.trim(), added:new Date().toLocaleDateString(),
+        });
+        persistSavedJobs(list);
+        ["aj-title","aj-company","aj-source","aj-url","aj-notes"].forEach(id=>{$(id).value="";});
         form.classList.add("hidden");
         renderSavedJobsList();
       });
     }
     renderSavedJobsList();
+
+    // Auto-fetch on first open
+    if(!$("jobs-results-area").dataset.fetched){
+      doJobSearch();
+    }
   }
 
-  function renderSavedJobsList() {
-    const host = $("saved-jobs-list");
-    if (!host) return;
-    const list = loadSavedJobs();
-    if (list.length === 0) {
-      host.innerHTML = `<p style="color:var(--muted);font-size:0.85rem;padding:0.75rem 0">No jobs tracked yet. Click "+ Track a job" to start.</p>`;
+  async function doJobSearch(){
+    const keyword=($("job-keyword")||{value:"CISSP"}).value||"CISSP";
+    const jobType=($("job-type")||{value:""}).value;
+    const area=$("jobs-results-area");
+    area.dataset.fetched="1";
+    area.innerHTML=
+      `<div class="jobs-loading">`+
+        `<div class="jobs-spinner"></div>`+
+        `<p>Fetching live CISSP jobs from Remotive, Jobicy &amp; Arbeitnow\u2026</p>`+
+      `</div>`;
+    const badge=$("jobs-live-badge");
+    if(badge) badge.classList.add("hidden");
+    const {jobs,errors}=await fetchCISSPJobs(keyword,jobType);
+    renderJobCards(jobs,errors);
+  }
+
+  function renderSavedJobsList(){
+    const host=$("saved-jobs-list");
+    if(!host) return;
+    const list=loadSavedJobs();
+    if(list.length===0){
+      host.innerHTML=`<p style="color:var(--muted);font-size:0.85rem;padding:0.75rem 0">No jobs tracked yet. Click \u201c+ Track a job\u201d or the \u201c+ Track\u201d button on any listing.</p>`;
       return;
     }
-    host.innerHTML = "";
-    list.forEach(job => {
-      const sm = JOB_STATUS_META[job.status] || JOB_STATUS_META.bookmarked;
-      const row = document.createElement("div");
-      row.className = "saved-job-row";
-      row.innerHTML =
-        `<div class="sjr-main">` +
-          `<span class="sjr-title">${job.title}</span>` +
-          (job.company ? `<span class="sjr-company">${job.company}</span>` : "") +
-          (job.source  ? `<span class="sjr-source">${job.source}</span>` : "") +
-          `<span class="sjr-status ${sm.cls}">${sm.label}</span>` +
-          `<span class="sjr-date">${job.added || ""}</span>` +
-        `</div>` +
-        (job.notes ? `<div class="sjr-notes">${job.notes}</div>` : "") +
-        `<div class="sjr-actions">` +
-          (job.url ? `<a href="${job.url}" target="_blank" rel="noopener" class="sjr-link">Open posting ↗</a>` : "") +
-          `<select class="sjr-status-sel" data-id="${job.id}">` +
-            Object.entries(JOB_STATUS_META).map(([v, m]) =>
-              `<option value="${v}"${job.status === v ? " selected" : ""}>${m.label}</option>`
-            ).join("") +
-          `</select>` +
-          `<button type="button" class="sjr-del" data-id="${job.id}">Delete</button>` +
+    host.innerHTML="";
+    list.forEach(job=>{
+      const sm=JOB_STATUS_META[job.status]||JOB_STATUS_META.bookmarked;
+      const row=document.createElement("div");
+      row.className="saved-job-row";
+      row.innerHTML=
+        `<div class="sjr-main">`+
+          `<span class="sjr-title">${job.title}</span>`+
+          (job.company?`<span class="sjr-company">${job.company}</span>`:"")+
+          (job.source?`<span class="sjr-source">${job.source}</span>`:"")+
+          `<span class="sjr-status ${sm.cls}">${sm.label}</span>`+
+          `<span class="sjr-date">${job.added||""}</span>`+
+        `</div>`+
+        (job.notes?`<div class="sjr-notes">${job.notes}</div>`:"")+
+        `<div class="sjr-actions">`+
+          (job.url?`<a href="${job.url}" target="_blank" rel="noopener" class="sjr-link">Open posting \u2197</a>`:"")+
+          `<select class="sjr-status-sel" data-id="${job.id}">`+
+            Object.entries(JOB_STATUS_META).map(([v,m])=>
+              `<option value="${v}"${job.status===v?" selected":""}>${m.label}</option>`
+            ).join("")+
+          `</select>`+
+          `<button type="button" class="sjr-del" data-id="${job.id}">Delete</button>`+
         `</div>`;
-      // Status change
-      row.querySelector(".sjr-status-sel").addEventListener("change", e => {
-        const jobs = loadSavedJobs();
-        const j = jobs.find(x => x.id === e.target.dataset.id);
-        if (j) { j.status = e.target.value; persistSavedJobs(jobs); renderSavedJobsList(); }
+      row.querySelector(".sjr-status-sel").addEventListener("change",e=>{
+        const jobs=loadSavedJobs();
+        const j=jobs.find(x=>x.id===e.target.dataset.id);
+        if(j){ j.status=e.target.value; persistSavedJobs(jobs); renderSavedJobsList(); }
       });
-      // Delete
-      row.querySelector(".sjr-del").addEventListener("click", e => {
-        if (!confirm("Remove this job from your tracker?")) return;
-        persistSavedJobs(loadSavedJobs().filter(x => x.id !== e.target.dataset.id));
+      row.querySelector(".sjr-del").addEventListener("click",e=>{
+        if(!confirm("Remove this job from your tracker?")) return;
+        persistSavedJobs(loadSavedJobs().filter(x=>x.id!==e.target.dataset.id));
         renderSavedJobsList();
       });
       host.appendChild(row);
     });
   }
 
-  // ── Resume view ───────────────────────────────────────────────────
+    // ── Resume view ───────────────────────────────────────────────────
 
   const CISSP_KEYWORDS = [
     // D1 — Security & Risk Management
