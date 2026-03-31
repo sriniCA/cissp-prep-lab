@@ -1,6 +1,53 @@
 (function () {
   "use strict";
 
+  // ── Token auth gate ──────────────────────────────────────────────
+  const ACCESS_TOKEN  = "55555";
+  const SESSION_KEY   = "cissp_auth_v1";
+
+  function isAuthenticated() {
+    return sessionStorage.getItem(SESSION_KEY) === "ok";
+  }
+
+  function showApp() {
+    document.getElementById("login-gate").classList.add("hidden");
+    document.getElementById("app").classList.remove("hidden");
+  }
+
+  function initLoginGate() {
+    if (isAuthenticated()) { showApp(); return; }
+
+    const tokenInput  = document.getElementById("login-token");
+    const submitBtn   = document.getElementById("login-submit");
+    const errorMsg    = document.getElementById("login-error");
+
+    function attempt() {
+      if (tokenInput.value.trim() === ACCESS_TOKEN) {
+        sessionStorage.setItem(SESSION_KEY, "ok");
+        // Reload so the full app initialises cleanly after auth
+        window.location.reload();
+      } else {
+        tokenInput.value = "";
+        errorMsg.classList.remove("hidden");
+        tokenInput.classList.add("login-shake");
+        setTimeout(() => tokenInput.classList.remove("login-shake"), 500);
+        tokenInput.focus();
+      }
+    }
+
+    submitBtn.addEventListener("click", attempt);
+    tokenInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") attempt();
+    });
+
+    tokenInput.focus();
+    return; // app code below must not run until authenticated
+  }
+
+  initLoginGate();
+  if (!isAuthenticated()) return;
+  // ── Auth passed — boot the full app ─────────────────────────────
+
   const LS_MARKED = "cissp_marked_hard_v1";
 
   const DOMAIN_SLUGS = [
