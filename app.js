@@ -450,13 +450,17 @@
     mode: null,
     questions: [],
     answers: [],
-    revealed: new Set(),   // indices where user clicked "Show Answer"
+    revealed: new Set(),
     index: 0,
     strict: false,
     showExplanation: true,
     timerEnd: null,
     timerId: null,
-    totalSeconds: 0
+    totalSeconds: 0,
+    timerTick: null,       // stored so resumeTimer can restart the interval
+    timerPauseStart: null, // Date.now() when paused, null when running
+    timerPausedMs: 0,      // cumulative ms spent paused this session
+    lastByDomain: {}       // stored after finishExam for gap analysis
   };
 
   function $(id) {
@@ -479,6 +483,9 @@
       state.timerId = null;
     }
     state.timerEnd = null;
+    state.timerTick = null;
+    state.timerPauseStart = null;
+    state.timerPausedMs = 0;
   }
 
   function formatTime(sec) {
@@ -490,8 +497,9 @@
   function startTimer(seconds) {
     clearTimer();
     state.totalSeconds = seconds;
-    const end = Date.now() + seconds * 1000;
-    state.timerEnd = end;
+    state.timerPausedMs = 0;
+    state.timerPauseStart = null;
+    state.timerEnd = Date.now() + seconds * 1000;
     const wrap = $("run-timer-wrap");
     const text = $("run-timer-text");
     const bar = $("run-timer-bar");
@@ -500,7 +508,8 @@
 
     function tick() {
       const left = Math.max(0, Math.ceil((state.timerEnd - Date.now()) / 1000));
-      text.textContent = formatTime(left);
+      const pauseBadge = document.getElementById("timer-pause-badge");
+      text.textContent = formatTime(left) + (pauseBadge ? "" : "");
       const pct = state.totalSeconds > 0 ? (left / state.totalSeconds) * 100 : 0;
       fill.style.width = `${pct}%`;
       bar.classList.toggle("warn", pct < 25 && pct >= 10);
@@ -510,8 +519,43 @@
         finishExam(true);
       }
     }
+    state.timerTick = tick;
     tick();
     state.timerId = setInterval(tick, 500);
+  }
+
+  function pauseTimer() {
+    if (state.mode !== "mock") return;
+    if (!state.timerId || state.timerPauseStart !== null) return; // already paused or no timer
+    clearInterval(state.timerId);
+    state.timerId = null;
+    state.timerPauseStart = Date.now();
+    // visual paused badge
+    const wrap = $("run-timer-wrap");
+    if (wrap && !document.getElementById("timer-pause-badge")) {
+      const badge = document.createElement("div");
+      badge.id = "timer-pause-badge";
+      badge.className = "timer-pause-badge";
+      badge.textContent = "⏸ PAUSED";
+      wrap.appendChild(badge);
+    }
+  }
+
+  function resumeTimer() {
+    if (state.mode !== "mock") return;
+    if (state.timerPauseStart === null) return; // not paused
+    const pausedMs = Date.now() - state.timerPauseStart;
+    state.timerPausedMs += pausedMs;
+    state.timerEnd += pausedMs; // shift end forward so paused time doesn't count down
+    state.timerPauseStart = null;
+    // remove badge
+    const badge = document.getElementById("timer-pause-badge");
+    if (badge) badge.remove();
+    // restart interval
+    if (state.timerTick) {
+      state.timerTick();
+      state.timerId = setInterval(state.timerTick, 500);
+    }
   }
 
   function renderDomainChecks() {
@@ -785,6 +829,7 @@
 
     // ── Elapsed time ──────────────────────────────────────────────
     let elapsedStr = "";
+    let pausedStr = "";
     if (state.mode === "mock" && state.totalSeconds > 0) {
       const usedSec = timeUp
         ? state.totalSeconds
@@ -792,7 +837,14 @@
       const em = Math.floor(usedSec / 60);
       const es = usedSec % 60;
       elapsedStr = `${em}m ${es}s`;
+      if (state.timerPausedMs > 0) {
+        const ps = Math.round(state.timerPausedMs / 1000);
+        pausedStr = `${Math.floor(ps / 60)}m ${ps % 60}s`;
+      }
     }
+
+    // ── Store byDomain for gap analysis access ────────────────────
+    state.lastByDomain = byDomain;
 
     // ── Save to history ───────────────────────────────────────────
     saveHistory({
@@ -866,6 +918,7 @@
     meta.className = "score-meta";
     const metaLines = [];
     if (elapsedStr) metaLines.push(`Time used: ${elapsedStr}`);
+    if (pausedStr) metaLines.push(`⏸ Timer paused: ${pausedStr} (reviewing answers)`);
     if (revealedCount) metaLines.push(`Answers revealed: ${revealedCount}`);
     metaLines.push(`Pass threshold: ${PASS_PCT}%`);
     meta.innerHTML = metaLines.map(l => `<div>${l}</div>`).join("");
@@ -1061,7 +1114,177 @@
       b.classList.toggle("active", b.dataset.filter === "all");
     });
 
+    // Hide and clear the gap analysis so a fresh click always re-renders
+    const gapPanel = $("results-gap");
+    gapPanel.classList.add("hidden");
+    gapPanel.innerHTML = "";
+
     showView("view-results");
+  }
+
+  // ── Gap Analysis ─────────────────────────────────────────────────
+  function renderGapAnalysis() {
+    const panel = $("results-gap");
+    panel.classList.remove("hidden");
+    panel.innerHTML = "";
+
+    const byDomain = state.lastByDomain || {};
+    const PASS_PCT = 70;
+    const REVIEW_PCT = 85;
+
+    // Enrich each domain with pct + wrong question texts
+    const domainStats = DOMAIN_SLUGS.map((slug) => {
+      const stat = byDomain[slug] || { correct: 0, wrong: 0, skipped: 0, total: 0, label: slug };
+      const pct = stat.total > 0 ? Math.round((stat.correct / stat.total) * 100) : null;
+      // gather wrong question indices for this domain
+      const wrongQs = state.questions.reduce((acc, q, i) => {
+        if (q.domain === slug && state.answers[i] !== null && state.answers[i] !== q.correctIndex) {
+          acc.push(q);
+        }
+        return acc;
+      }, []);
+      // get concept topics for this domain from CISSP_CONCEPTS
+      const conceptEntry = (window.CISSP_CONCEPTS || []).find(c => c.domain === slug);
+      const topics = conceptEntry ? conceptEntry.topics.map(t => t.title) : [];
+      return { slug, label: stat.label, stat, pct, wrongQs, topics };
+    }).filter(d => d.stat.total > 0); // only domains that appeared in this session
+
+    if (domainStats.length === 0) {
+      panel.innerHTML = `<p style="color:var(--muted);text-align:center;padding:1.5rem 0">No domain data available for this session.</p>`;
+      return;
+    }
+
+    const priority1 = domainStats.filter(d => d.pct !== null && d.pct < PASS_PCT).sort((a, b) => a.pct - b.pct);
+    const priority2 = domainStats.filter(d => d.pct !== null && d.pct >= PASS_PCT && d.pct < REVIEW_PCT);
+    const strong    = domainStats.filter(d => d.pct !== null && d.pct >= REVIEW_PCT);
+
+    const overallPct = (() => {
+      let c = 0, t = 0;
+      domainStats.forEach(d => { c += d.stat.correct; t += d.stat.total; });
+      return t ? Math.round((c / t) * 100) : 0;
+    })();
+
+    const header = document.createElement("div");
+    header.className = "gap-header";
+    const statusCls = overallPct >= PASS_PCT ? "gap-status-pass" : "gap-status-fail";
+    header.innerHTML =
+      `<div class="gap-title">📊 Gap Analysis — Study Priority Plan</div>` +
+      `<div class="gap-overall ${statusCls}">Overall: ${overallPct}% — ${overallPct >= PASS_PCT ? "Passing range" : "Needs improvement"}</div>`;
+    panel.appendChild(header);
+
+    function renderSection(title, badge, items, badgeCls) {
+      if (items.length === 0) return;
+      const sec = document.createElement("div");
+      sec.className = "gap-section";
+
+      const secHead = document.createElement("div");
+      secHead.className = "gap-section-head";
+      secHead.innerHTML = `<span class="gap-badge ${badgeCls}">${badge}</span><span class="gap-section-title">${title}</span>`;
+      sec.appendChild(secHead);
+
+      items.forEach(d => {
+        const card = document.createElement("div");
+        card.className = "gap-card " + badgeCls;
+
+        const pctLabel = d.pct !== null ? `${d.pct}%` : "–";
+        const domNum = DOMAIN_SLUGS.indexOf(d.slug) + 1;
+
+        const cardTop = document.createElement("div");
+        cardTop.className = "gap-card-top";
+        cardTop.innerHTML =
+          `<span class="gap-domain-label">D${domNum}: ${d.label}</span>` +
+          `<span class="gap-pct-badge ${badgeCls}">${pctLabel}</span>`;
+        card.appendChild(cardTop);
+
+        if (d.stat.wrong > 0 || d.stat.skipped > 0) {
+          const statsRow = document.createElement("div");
+          statsRow.className = "gap-stats-row";
+          statsRow.innerHTML =
+            `<span class="gap-stat-wrong">✗ ${d.stat.wrong} wrong</span>` +
+            (d.stat.skipped > 0 ? `<span class="gap-stat-skip">⊘ ${d.stat.skipped} skipped</span>` : "") +
+            `<span class="gap-stat-ok">✓ ${d.stat.correct} correct</span>`;
+          card.appendChild(statsRow);
+        }
+
+        if (d.topics.length > 0 && badgeCls !== "gap-strong") {
+          const topicHead = document.createElement("div");
+          topicHead.className = "gap-topic-head";
+          topicHead.textContent = "📚 Topics to study:";
+          card.appendChild(topicHead);
+
+          const topicList = document.createElement("ul");
+          topicList.className = "gap-topic-list";
+          d.topics.forEach(t => {
+            const li = document.createElement("li");
+            li.textContent = t;
+            topicList.appendChild(li);
+          });
+          card.appendChild(topicList);
+        }
+
+        if (d.wrongQs.length > 0 && badgeCls !== "gap-strong") {
+          const wqHead = document.createElement("div");
+          wqHead.className = "gap-topic-head";
+          wqHead.textContent = "❌ Questions you got wrong:";
+          card.appendChild(wqHead);
+
+          const wqList = document.createElement("div");
+          wqList.className = "gap-wq-list";
+          d.wrongQs.slice(0, 5).forEach(q => {
+            const wq = document.createElement("div");
+            wq.className = "gap-wq-item";
+            wq.textContent = q.text.length > 110 ? q.text.slice(0, 107) + "…" : q.text;
+            wqList.appendChild(wq);
+          });
+          if (d.wrongQs.length > 5) {
+            const more = document.createElement("div");
+            more.className = "gap-wq-more";
+            more.textContent = `+ ${d.wrongQs.length - 5} more wrong answers (see Question Review above)`;
+            wqList.appendChild(more);
+          }
+          card.appendChild(wqList);
+        }
+
+        const practiceBtn = document.createElement("button");
+        practiceBtn.type = "button";
+        practiceBtn.className = "gap-practice-btn";
+        practiceBtn.textContent = `▶ Practice ${d.label.split(" ").slice(0, 3).join(" ")} questions`;
+        practiceBtn.addEventListener("click", () => {
+          startDomainSession(d.slug, d.label);
+        });
+        card.appendChild(practiceBtn);
+
+        sec.appendChild(card);
+      });
+
+      panel.appendChild(sec);
+    }
+
+    renderSection(
+      "Domains Needing Work — Focus Here First",
+      "⚠ Priority 1",
+      priority1,
+      "gap-critical"
+    );
+    renderSection(
+      "Domains to Review — Solidify Your Knowledge",
+      "↑ Priority 2",
+      priority2,
+      "gap-review"
+    );
+    renderSection(
+      "Strong Domains — Maintain Your Edge",
+      "✓ Strong",
+      strong,
+      "gap-strong"
+    );
+
+    if (priority1.length === 0 && priority2.length === 0) {
+      const congrats = document.createElement("div");
+      congrats.className = "gap-congrats";
+      congrats.innerHTML = `<div style="font-size:2rem">🎉</div><div>Outstanding performance across all domains! Keep practising to maintain your edge.</div>`;
+      panel.appendChild(congrats);
+    }
   }
 
   function bind() {
@@ -1170,25 +1393,29 @@
       renderQuestion();
     });
 
-    $("btn-prev").addEventListener("click", () => goDelta(-1));
-    $("btn-next").addEventListener("click", () => goDelta(1));
+    $("btn-prev").addEventListener("click", () => { resumeTimer(); goDelta(-1); });
+    $("btn-next").addEventListener("click", () => { resumeTimer(); goDelta(1); });
 
     $("btn-reveal").addEventListener("click", () => {
       if (state.revealed.has(state.index)) {
         state.revealed.delete(state.index);
+        resumeTimer(); // timer resumes when hiding the answer
       } else {
         state.revealed.add(state.index);
+        pauseTimer(); // timer pauses when revealing the answer
       }
       renderQuestion();
     });
 
     $("btn-finish-study").addEventListener("click", () => {
+      resumeTimer(); // clear any pause before finalising
       finishExam(false);
     });
 
     $("btn-submit").addEventListener("click", () => {
       const unanswered = state.answers.some((a) => a === null || a === undefined);
       if (unanswered && !confirm("Some questions are unanswered. Submit anyway?")) return;
+      resumeTimer();
       finishExam(false);
     });
 
@@ -1214,6 +1441,11 @@
     });
 
     $("results-home").addEventListener("click", () => showView("view-home"));
+
+    $("btn-gap-analysis").addEventListener("click", () => {
+      renderGapAnalysis();
+      $("results-gap").scrollIntoView({ behavior: "smooth" });
+    });
   }
 
   // ── Study Materials / PDF Resources ─────────────────────────────
