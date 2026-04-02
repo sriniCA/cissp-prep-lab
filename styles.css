@@ -2842,6 +2842,159 @@ footer.app-foot {
 }
 #btn-apply-keywords:hover { background: rgba(251,191,36,0.32); }
 
+/* ── Analysis mode tabs ──────────────────────────────────────────── */
+.ra-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 0;
+  border-bottom: 2px solid var(--border);
+}
+.ra-tab {
+  flex: 1;
+  padding: 0.5rem 0.5rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.ra-tab:hover { color: var(--text); }
+.ra-tab.ra-tab-active {
+  color: var(--accent, #6366f1);
+  border-bottom-color: var(--accent, #6366f1);
+}
+
+/* Panel that shows under each tab */
+.ra-panel { padding-top: 0.85rem; }
+
+/* Short intro text */
+.ra-desc {
+  font-size: 0.76rem;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0 0 0.65rem;
+}
+
+/* Portal name badges */
+.ra-portal-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
+}
+.ra-portal {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.18rem 0.5rem;
+  border-radius: 20px;
+  background: rgba(99,102,241,0.1);
+  color: var(--accent, #6366f1);
+  border: 1px solid rgba(99,102,241,0.25);
+  letter-spacing: 0.02em;
+}
+
+/* Shared "Analyze" button (both tabs) */
+.ra-analyze-btn {
+  display: block;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  background: var(--accent, #6366f1);
+  border: none;
+  border-radius: 7px;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  margin-bottom: 0.75rem;
+}
+.ra-analyze-btn:hover { opacity: 0.86; }
+
+/* URL row (job post tab) */
+.ra-url-row {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+.ra-url-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.42rem 0.6rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.78rem;
+}
+.ra-url-input:focus { outline: none; border-color: var(--accent, #6366f1); }
+.ra-fetch-btn {
+  flex-shrink: 0;
+  padding: 0.42rem 0.7rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+/* "or paste description below" divider */
+.ra-or-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.ra-or-divider::before,
+.ra-or-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Demand tier section headers in market results */
+.ra-tier-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 0.25rem 0.4rem;
+  border-radius: 4px;
+  margin: 0.55rem 0 0.3rem;
+}
+.ra-tier-count {
+  font-weight: 600;
+  font-size: 0.68rem;
+  opacity: 0.85;
+}
+.demand-critical { background: rgba(239,68,68,0.1);   color: #ef4444; }
+.demand-high     { background: rgba(245,158,11,0.1);  color: #f59e0b; }
+.demand-medium   { background: rgba(59,130,246,0.1);  color: #3b82f6; }
+.demand-emerging { background: rgba(139,92,246,0.1);  color: #8b5cf6; }
+
+/* Market gap summary note */
+.ra-gap-summary {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.65rem;
+  background: rgba(99,102,241,0.07);
+  border: 1px solid rgba(99,102,241,0.2);
+  border-radius: 6px;
+  font-size: 0.74rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.ra-gap-summary strong { color: var(--text); }
+
 /* Generate Optimized Resume PDF button */
 .resume-gen-btn {
   display: block;

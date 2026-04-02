@@ -465,21 +465,71 @@
           <div class="resume-char-count"><span id="resume-word-count">0 words</span></div>
         </div>
 
-        <!-- Right: analysis -->
+        <!-- Right: analysis (tabbed) -->
         <div class="resume-analysis-col">
-          <h3 class="resume-analysis-head">&#x1F50D; Job Match Analysis</h3>
-          <textarea id="resume-job-desc" class="resume-job-desc-input"
-            placeholder="Paste a job description here and click Analyze to see how well your resume matches the required CISSP skills…" rows="8"></textarea>
-          <button type="button" id="btn-analyze-job">Analyze Match</button>
-          <div id="job-analysis-results" class="job-analysis-results hidden"></div>
+
+          <!-- ── Mode tabs ─────────────────────────────────── -->
+          <div class="ra-tabs" role="tablist" aria-label="Analysis mode">
+            <button type="button" class="ra-tab ra-tab-active" id="ra-tab-market"
+                    role="tab" aria-selected="true" aria-controls="ra-panel-market">
+              &#x1F310; CISSP Market
+            </button>
+            <button type="button" class="ra-tab" id="ra-tab-job"
+                    role="tab" aria-selected="false" aria-controls="ra-panel-job">
+              &#x1F4CB; Job Post
+            </button>
+          </div>
+
+          <!-- ── Tab 1: CISSP Market Analysis ─────────────── -->
+          <div id="ra-panel-market" class="ra-panel" role="tabpanel">
+            <p class="ra-desc">
+              Compares your resume against the most in-demand skills found in
+              <strong>CISSP job postings</strong> across major hiring portals.
+            </p>
+            <div class="ra-portal-row">
+              <span class="ra-portal">LinkedIn</span>
+              <span class="ra-portal">Dice</span>
+              <span class="ra-portal">Indeed</span>
+              <span class="ra-portal">ZipRecruiter</span>
+              <span class="ra-portal">CyberSeek</span>
+            </div>
+            <button type="button" id="btn-analyze-market" class="ra-analyze-btn">
+              &#x1F50D; Analyze vs CISSP Market
+            </button>
+            <div id="market-analysis-results" class="job-analysis-results hidden"></div>
+          </div>
+
+          <!-- ── Tab 2: Specific Job Post ──────────────────── -->
+          <div id="ra-panel-job" class="ra-panel hidden" role="tabpanel">
+            <p class="ra-desc">
+              Paste a job posting URL to auto-fetch its text, or paste the description directly.
+            </p>
+            <div class="ra-url-row">
+              <input type="url" id="resume-job-url" class="ra-url-input"
+                     placeholder="https://www.linkedin.com/jobs/view/…" />
+              <button type="button" id="btn-fetch-url" class="secondary ra-fetch-btn">Fetch</button>
+            </div>
+            <div class="ra-or-divider"><span>or paste description below</span></div>
+            <textarea id="resume-job-desc" class="resume-job-desc-input"
+              placeholder="Paste the full job description here…" rows="7"></textarea>
+            <button type="button" id="btn-analyze-job" class="ra-analyze-btn">
+              &#x1F50D; Analyze vs Job Post
+            </button>
+            <div id="job-analysis-results" class="job-analysis-results hidden"></div>
+            <div id="add-keywords-panel" class="add-keywords-panel hidden">
+              <div class="akp-head">Suggested additions to your resume:</div>
+              <div id="akp-list"></div>
+              <div class="row mt">
+                <button type="button" id="btn-apply-keywords">+ Add checked keywords to resume</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Shared: Generate optimized PDF (shown after any analysis) -->
           <button type="button" id="btn-generate-optimized" class="resume-gen-btn hidden">
             &#x1F680; Generate Optimized Resume PDF
           </button>
-          <div id="add-keywords-panel" class="add-keywords-panel hidden">
-            <div class="akp-head">Suggested additions to your resume:</div>
-            <div id="akp-list"></div>
-            <div class="row mt"><button type="button" id="btn-apply-keywords">+ Add checked keywords to resume</button></div>
-          </div>
+
         </div>
       </div>
     </section>
