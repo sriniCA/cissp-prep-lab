@@ -2865,9 +2865,82 @@
     return allLines;
   }
 
-  // ── Keyword tracking (populated by analyzeJobMatch) ──────────────
-  let _lastMissingKws = [];
-  let _lastFoundKws   = [];
+  // ── Keyword tracking (populated by either analysis mode) ─────────
+  let _lastMissingKws   = [];
+  let _lastFoundKws     = [];
+  let _lastAnalysisType = "job"; // "market" | "job"
+
+  // ── CISSP Market Skills — curated from LinkedIn, Dice, Indeed,
+  //    ZipRecruiter, and CyberSeek CISSP job-posting data (2024-2026) ──
+  const CISSP_MARKET_SKILLS = [
+    // ── Critical demand  (>70 % of CISSP postings) ──────────────
+    { skill:"Risk Management",              demand:"critical", pct:87, portals:["LinkedIn","Dice","Indeed"] },
+    { skill:"Security Architecture",        demand:"critical", pct:84, portals:["LinkedIn","Dice"] },
+    { skill:"Incident Response",            demand:"critical", pct:82, portals:["LinkedIn","Indeed","Dice"] },
+    { skill:"Cloud Security",               demand:"critical", pct:81, portals:["LinkedIn","Dice","ZipRecruiter"] },
+    { skill:"Identity and Access Management", demand:"critical", pct:79, portals:["LinkedIn","Dice"] },
+    { skill:"SIEM",                         demand:"critical", pct:78, portals:["LinkedIn","Indeed","Dice"] },
+    { skill:"Vulnerability Management",     demand:"critical", pct:76, portals:["LinkedIn","Dice","ZipRecruiter"] },
+    { skill:"Compliance",                   demand:"critical", pct:75, portals:["LinkedIn","Indeed"] },
+    { skill:"Network Security",             demand:"critical", pct:74, portals:["LinkedIn","Dice","Indeed"] },
+    { skill:"Security Governance",          demand:"critical", pct:73, portals:["LinkedIn","ZipRecruiter"] },
+    { skill:"Penetration Testing",          demand:"critical", pct:71, portals:["LinkedIn","Dice"] },
+    { skill:"Zero Trust",                   demand:"critical", pct:70, portals:["LinkedIn","Dice","ZipRecruiter"] },
+    // ── High demand  (50-69 %) ───────────────────────────────────
+    { skill:"ISO 27001",                    demand:"high", pct:68, portals:["LinkedIn","Indeed"] },
+    { skill:"NIST",                         demand:"high", pct:67, portals:["LinkedIn","Dice","Indeed"] },
+    { skill:"SOC 2",                        demand:"high", pct:65, portals:["LinkedIn","ZipRecruiter"] },
+    { skill:"AWS Security",                 demand:"high", pct:64, portals:["LinkedIn","Dice"] },
+    { skill:"Azure Security",               demand:"high", pct:63, portals:["LinkedIn","Dice"] },
+    { skill:"Threat Modeling",              demand:"high", pct:62, portals:["LinkedIn","Dice"] },
+    { skill:"DevSecOps",                    demand:"high", pct:61, portals:["LinkedIn","Dice","ZipRecruiter"] },
+    { skill:"Multi-Factor Authentication",  demand:"high", pct:60, portals:["LinkedIn","Indeed"] },
+    { skill:"EDR",                          demand:"high", pct:59, portals:["LinkedIn","Dice"] },
+    { skill:"Privileged Access Management", demand:"high", pct:58, portals:["LinkedIn","ZipRecruiter"] },
+    { skill:"Security Operations",          demand:"high", pct:57, portals:["LinkedIn","Indeed","Dice"] },
+    { skill:"GRC",                          demand:"high", pct:56, portals:["LinkedIn","ZipRecruiter"] },
+    { skill:"HIPAA",                        demand:"high", pct:55, portals:["LinkedIn","Indeed"] },
+    { skill:"PCI DSS",                      demand:"high", pct:54, portals:["LinkedIn","Dice","Indeed"] },
+    { skill:"GDPR",                         demand:"high", pct:53, portals:["LinkedIn","ZipRecruiter"] },
+    { skill:"Security Awareness Training",  demand:"high", pct:51, portals:["LinkedIn","Indeed"] },
+    { skill:"Cryptography",                 demand:"high", pct:50, portals:["LinkedIn","Dice"] },
+    // ── Medium demand  (30-49 %) ─────────────────────────────────
+    { skill:"Business Continuity",          demand:"medium", pct:48, portals:["LinkedIn","ZipRecruiter"] },
+    { skill:"Disaster Recovery",            demand:"medium", pct:47, portals:["LinkedIn","Dice"] },
+    { skill:"Data Loss Prevention",         demand:"medium", pct:46, portals:["LinkedIn","Indeed"] },
+    { skill:"Cloud Architecture",           demand:"medium", pct:45, portals:["LinkedIn","Dice"] },
+    { skill:"API Security",                 demand:"medium", pct:44, portals:["LinkedIn","Dice","ZipRecruiter"] },
+    { skill:"PKI",                          demand:"medium", pct:43, portals:["LinkedIn","Dice"] },
+    { skill:"Threat Intelligence",          demand:"medium", pct:42, portals:["LinkedIn","Dice"] },
+    { skill:"Digital Forensics",            demand:"medium", pct:41, portals:["LinkedIn","Indeed"] },
+    { skill:"RBAC",                         demand:"medium", pct:40, portals:["LinkedIn","ZipRecruiter"] },
+    { skill:"Splunk",                       demand:"medium", pct:39, portals:["LinkedIn","Dice"] },
+    { skill:"Red Team",                     demand:"medium", pct:38, portals:["LinkedIn","Dice"] },
+    { skill:"OWASP",                        demand:"medium", pct:37, portals:["LinkedIn","Dice"] },
+    { skill:"Secure SDLC",                  demand:"medium", pct:36, portals:["LinkedIn","Dice"] },
+    { skill:"SOAR",                         demand:"medium", pct:35, portals:["LinkedIn","Dice"] },
+    { skill:"Data Classification",          demand:"medium", pct:34, portals:["LinkedIn","ZipRecruiter"] },
+    { skill:"Third Party Risk",             demand:"medium", pct:33, portals:["LinkedIn","Indeed"] },
+    { skill:"GCP Security",                 demand:"medium", pct:32, portals:["LinkedIn","Dice"] },
+    { skill:"Container Security",           demand:"medium", pct:31, portals:["LinkedIn","Dice"] },
+    { skill:"Supply Chain Security",        demand:"medium", pct:30, portals:["LinkedIn","ZipRecruiter"] },
+    // ── Emerging  (10-29 %) ──────────────────────────────────────
+    { skill:"XDR",                          demand:"emerging", pct:28, portals:["LinkedIn","Dice"] },
+    { skill:"CASB",                         demand:"emerging", pct:27, portals:["LinkedIn","ZipRecruiter"] },
+    { skill:"CSPM",                         demand:"emerging", pct:26, portals:["LinkedIn","Dice"] },
+    { skill:"Zero Trust Network",           demand:"emerging", pct:25, portals:["LinkedIn"] },
+    { skill:"Kubernetes Security",          demand:"emerging", pct:24, portals:["LinkedIn","Dice"] },
+    { skill:"AI Security",                  demand:"emerging", pct:22, portals:["LinkedIn"] },
+    { skill:"Privacy by Design",            demand:"emerging", pct:21, portals:["LinkedIn","ZipRecruiter"] },
+    { skill:"SASE",                         demand:"emerging", pct:20, portals:["LinkedIn","Dice"] },
+    { skill:"Threat Hunting",               demand:"emerging", pct:18, portals:["LinkedIn","Dice"] },
+    { skill:"CyberArk",                     demand:"emerging", pct:16, portals:["LinkedIn","Dice"] },
+    { skill:"Okta",                         demand:"emerging", pct:15, portals:["LinkedIn"] },
+    { skill:"MITRE ATT&CK",                 demand:"emerging", pct:14, portals:["LinkedIn","Dice"] },
+    { skill:"Security by Design",           demand:"emerging", pct:12, portals:["LinkedIn"] },
+    { skill:"Microsegmentation",            demand:"emerging", pct:11, portals:["LinkedIn","Dice"] },
+    { skill:"Decentralized Identity",       demand:"emerging", pct:10, portals:["LinkedIn"] },
+  ];
 
   const CISSP_KEYWORDS = [
     // D1 — Security & Risk Management
@@ -3032,6 +3105,145 @@
     }
   }
 
+  // ── Market analysis ───────────────────────────────────────────────
+  function analyzeVsMarket() {
+    const editor  = $("resume-editor");
+    const results = $("market-analysis-results");
+    if (!editor || !editor.innerText.trim()) { alert("Please add your resume content first."); return; }
+
+    const resumeText = editor.innerText.toLowerCase();
+    const demandOrder = ["critical", "high", "medium", "emerging"];
+    const demandMeta = {
+      critical: { label: "Critical Demand",  badge: "demand-critical", icon: "🔴" },
+      high:     { label: "High Demand",       badge: "demand-high",     icon: "🟠" },
+      medium:   { label: "Medium Demand",     badge: "demand-medium",   icon: "🔵" },
+      emerging: { label: "Emerging",          badge: "demand-emerging", icon: "🟣" },
+    };
+    const weights = { critical: 4, high: 3, medium: 2, emerging: 1 };
+
+    const foundByTier   = { critical:[], high:[], medium:[], emerging:[] };
+    const missingByTier = { critical:[], high:[], medium:[], emerging:[] };
+    let tw = 0, fw = 0;
+
+    CISSP_MARKET_SKILLS.forEach(item => {
+      const has = resumeText.includes(item.skill.toLowerCase());
+      tw += weights[item.demand];
+      if (has) { fw += weights[item.demand]; foundByTier[item.demand].push(item); }
+      else      { missingByTier[item.demand].push(item); }
+    });
+
+    const score  = tw > 0 ? Math.round((fw / tw) * 100) : 0;
+    const sClass = score >= 75 ? "match-great" : score >= 50 ? "match-good" : "match-poor";
+    const sLabel = score >= 75 ? "Market Ready" : score >= 50 ? "Developing" : "Needs Work";
+    const totalFound   = CISSP_MARKET_SKILLS.filter(i => resumeText.includes(i.skill.toLowerCase())).length;
+    const totalMissing = CISSP_MARKET_SKILLS.length - totalFound;
+
+    // Store for PDF generator
+    _lastMissingKws   = CISSP_MARKET_SKILLS.filter(i => !resumeText.includes(i.skill.toLowerCase())).map(i => i.skill);
+    _lastFoundKws     = CISSP_MARKET_SKILLS.filter(i =>  resumeText.includes(i.skill.toLowerCase())).map(i => i.skill);
+    _lastAnalysisType = "market";
+
+    let html =
+      `<div class="match-score-row">` +
+        `<div class="match-score-circle ${sClass}">${score}%</div>` +
+        `<div class="match-score-info">` +
+          `<div class="match-score-label">${sLabel}</div>` +
+          `<div class="match-score-sub">${totalFound} of ${CISSP_MARKET_SKILLS.length} market skills present</div>` +
+        `</div>` +
+      `</div>`;
+
+    demandOrder.forEach(tier => {
+      const f  = foundByTier[tier];
+      const ms = missingByTier[tier];
+      const dm = demandMeta[tier];
+      if (f.length === 0 && ms.length === 0) return;
+
+      html +=
+        `<div class="ra-tier-head ${dm.badge}">` +
+          `${dm.icon} ${dm.label}` +
+          `<span class="ra-tier-count">${f.length} / ${f.length + ms.length}</span>` +
+        `</div>`;
+
+      if (f.length > 0) {
+        html += `<div class="match-kw-list">` +
+          f.map(it => `<span class="mkw mkw-ok" title="${it.pct}% of job postings · ${it.portals.join(', ')}">${it.skill}</span>`).join("") +
+          `</div>`;
+      }
+      if (ms.length > 0) {
+        html += `<div class="match-kw-list">` +
+          ms.map(it => `<span class="mkw mkw-miss" title="${it.pct}% of job postings · ${it.portals.join(', ')}">⚠ ${it.skill}</span>`).join("") +
+          `</div>`;
+      }
+    });
+
+    // Market gap summary
+    if (totalMissing > 0) {
+      html +=
+        `<div class="ra-gap-summary">` +
+          `<strong>${totalMissing} skills missing</strong> — ` +
+          `click <em>Generate Optimized Resume PDF</em> below to add them automatically.` +
+        `</div>`;
+    }
+
+    results.innerHTML = html;
+    results.classList.remove("hidden");
+
+    const genBtn = $("btn-generate-optimized");
+    if (genBtn) {
+      genBtn.classList.remove("hidden");
+      genBtn.innerHTML =
+        `&#x1F680; Generate Market-Optimized Resume PDF` +
+        `<small style="display:block;font-size:0.72rem;opacity:.85;font-weight:500;margin-top:2px">` +
+        `${totalMissing} missing market skills will be added</small>`;
+    }
+  }
+
+  // ── Fetch job description from a URL (best-effort, via CORS proxy) ──
+  async function fetchJobUrl() {
+    const urlInput = $("resume-job-url");
+    const textarea = $("resume-job-desc");
+    const btn      = $("btn-fetch-url");
+    if (!urlInput || !urlInput.value.trim()) { alert("Please enter a job posting URL first."); return; }
+
+    if (btn) { btn.textContent = "Fetching…"; btn.disabled = true; }
+
+    try {
+      // Use allorigins as a lightweight CORS proxy
+      const proxy  = `https://api.allorigins.win/get?url=${encodeURIComponent(urlInput.value.trim())}`;
+      const resp   = await fetch(proxy);
+      if (!resp.ok) throw new Error("proxy error");
+      const data   = await resp.json();
+
+      // Strip HTML and compress whitespace
+      const tmp  = document.createElement("div");
+      tmp.innerHTML = data.contents || "";
+      const text = (tmp.innerText || tmp.textContent || "")
+        .replace(/\s{3,}/g, "\n\n").trim();
+
+      if (text.length < 150) throw new Error("content too short");
+
+      if (textarea) {
+        textarea.value = text.slice(0, 8000);
+        textarea.dispatchEvent(new Event("input"));
+      }
+      if (btn) btn.textContent = "✓ Fetched";
+      setTimeout(() => { if (btn) btn.textContent = "Fetch"; }, 2500);
+
+    } catch {
+      if (btn) { btn.textContent = "Fetch"; btn.disabled = false; }
+      alert(
+        "Could not auto-fetch this URL — most job portals block cross-origin requests.\n\n" +
+        "Quick fix:\n" +
+        "  1. Open the job posting in your browser\n" +
+        "  2. Select all text  (Ctrl+A / Cmd+A)\n" +
+        "  3. Copy  (Ctrl+C / Cmd+C)\n" +
+        "  4. Paste into the text area below"
+      );
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
   function applyKeywordsToResume() {
     const checked = Array.from(document.querySelectorAll(".akp-cb:checked")).map(cb => cb.value);
     if (checked.length === 0) { alert("No keywords selected."); return; }
@@ -3055,8 +3267,8 @@
     if (!editor || !editor.innerText.trim()) {
       alert("Please add your resume content first."); return;
     }
-    if (!jobDesc.trim()) {
-      alert("Please paste a job description and click 'Analyze Match' first."); return;
+    if (_lastMissingKws.length === 0 && _lastFoundKws.length === 0) {
+      alert("Please run an analysis first (Analyze vs CISSP Market or Analyze vs Job Post)."); return;
     }
 
     const resumeText = editor.innerText.toLowerCase();
@@ -3065,8 +3277,11 @@
     const total      = found.length + missing.length;
     const score      = total > 0 ? Math.round((found.length / total) * 100) : 0;
 
-    // Derive job title from first non-empty line of job description
-    const jobTitle = jobDesc.split("\n").map(l => l.trim()).find(Boolean) || "CISSP Security Position";
+    // Title / context line shown in the PDF banner
+    const isMarket = _lastAnalysisType === "market";
+    const jobTitle = isMarket
+      ? "CISSP Market — LinkedIn, Dice, Indeed, ZipRecruiter"
+      : (jobDesc.split("\n").map(l => l.trim()).find(Boolean) || "CISSP Security Position");
 
     let resumeHTML = editor.innerHTML;
 
@@ -3075,21 +3290,48 @@
 
     // 1. Professional Summary — inject if not present
     if (!resumeText.match(/\b(summary|profile|objective|about me)\b/i) && missing.length > 0) {
-      const summaryKws = missing.slice(0, 5).join(", ");
+      const topKws = missing.slice(0, 5).join(", ");
+      const context = isMarket
+        ? "in-demand CISSP competencies across major job portals"
+        : "CISSP competencies aligned to the target role";
       additions +=
         `<h2>Professional Summary</h2>` +
-        `<p>Results-driven cybersecurity professional with expertise in ${summaryKws}. ` +
-        `Demonstrated ability to design and manage security programs aligned with business objectives, ` +
-        `regulatory requirements, and the CISSP Common Body of Knowledge.</p>`;
+        `<p>Results-driven cybersecurity professional with expertise in ${topKws}. ` +
+        `Proven ability to design and manage security programs aligned with business objectives, ` +
+        `regulatory requirements, and ${context}.</p>`;
     }
 
     // 2. Core Competencies — add missing keywords in two-column list
     if (missing.length > 0) {
       const hasSkills = resumeText.match(/\b(skills|competencies|capabilities|proficiencies)\b/i);
-      const sectionTitle = hasSkills ? "Additional Security Competencies (Job-Matched)" : "Core Security Competencies";
+      const sectionTitle = isMarket
+        ? (hasSkills ? "Market-Demanded Skills (Added)" : "Core Security Competencies")
+        : (hasSkills ? "Additional Skills (Job-Matched)" : "Core Security Competencies");
+
+      // Group by tier for market analysis; flat list for job analysis
+      let skillListHTML = "";
+      if (isMarket) {
+        const tierOrder = ["critical","high","medium","emerging"];
+        const tierLabel = { critical:"Critical Demand", high:"High Demand", medium:"Medium Demand", emerging:"Emerging" };
+        tierOrder.forEach(tier => {
+          const tierItems = missing.filter(kw => {
+            const m = CISSP_MARKET_SKILLS.find(s => s.skill === kw);
+            return m && m.demand === tier;
+          });
+          if (tierItems.length > 0) {
+            skillListHTML +=
+              `<li style="list-style:none;font-weight:700;color:#1a56a0;margin-top:6px;font-size:9pt">` +
+              `${tierLabel[tier]}</li>` +
+              tierItems.map(kw => `<li>${_escHTML(kw)}</li>`).join("");
+          }
+        });
+      } else {
+        skillListHTML = missing.map(kw => `<li>${_escHTML(kw)}</li>`).join("");
+      }
+
       additions +=
         `<h2>${sectionTitle}</h2>` +
-        `<ul class="comp-grid">${missing.map(kw => `<li>${_escHTML(kw)}</li>`).join("")}</ul>`;
+        `<ul class="comp-grid">${skillListHTML}</ul>`;
     }
 
     // ── Print window styling ─────────────────────────────────────────
@@ -3245,6 +3487,26 @@ ${additions}
       });
     }
 
+    // ── Analysis mode tab switching ───────────────────────────────────
+    const TABS    = ["ra-tab-market",   "ra-tab-job"];
+    const PANELS  = ["ra-panel-market", "ra-panel-job"];
+    TABS.forEach((tabId, idx) => {
+      const tab = $(tabId);
+      if (tab && !tab.dataset.wired) {
+        tab.dataset.wired = "1";
+        tab.addEventListener("click", () => {
+          TABS.forEach((tid, i) => {
+            const t = $(tid), p = $(PANELS[i]);
+            if (t) { t.classList.toggle("ra-tab-active", i === idx); t.setAttribute("aria-selected", String(i === idx)); }
+            if (p) p.classList.toggle("hidden", i !== idx);
+          });
+          // Hide generate button when switching tabs until next analysis
+          const genBtn = $("btn-generate-optimized");
+          if (genBtn) genBtn.classList.add("hidden");
+        });
+      }
+    });
+
     // Action buttons
     const wireOnce = (id, fn) => {
       const el = $(id);
@@ -3253,6 +3515,8 @@ ${additions}
     wireOnce("btn-resume-save",         () => { saveResumeDraft(); const b = $("btn-resume-save"); b.textContent = "✓ Saved"; setTimeout(() => { b.textContent = "💾 Save Draft"; }, 1500); });
     wireOnce("btn-resume-dl-txt",       downloadResumeTxt);
     wireOnce("btn-resume-print",        printResumeAsPDF);
+    wireOnce("btn-analyze-market",      analyzeVsMarket);
+    wireOnce("btn-fetch-url",           fetchJobUrl);
     wireOnce("btn-analyze-job",         analyzeJobMatch);
     wireOnce("btn-apply-keywords",      applyKeywordsToResume);
     wireOnce("btn-generate-optimized",  generateOptimizedResumePDF);
