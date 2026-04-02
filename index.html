@@ -51,6 +51,7 @@
         <button type="button" id="btn-concepts" class="secondary">Key Concepts</button>
         <button type="button" id="btn-materials" class="secondary">📄 Materials</button>
         <button type="button" id="btn-help" class="secondary">Import material</button>
+        <button type="button" id="btn-acronyms" class="secondary">&#x1F4D6; Acronyms</button>
         <button type="button" id="btn-jobs" class="secondary">&#x1F4BC; Jobs</button>
         <button type="button" id="btn-resume" class="secondary">&#x1F4CB; Resume</button>
       </div>
@@ -266,6 +267,70 @@
       </div>
 
       <div id="resources-list"></div>
+    </section>
+
+    <!-- ═══════════════════ Acronym Reference & Flashcards ═══════════════════ -->
+    <section id="view-acronyms" class="panel hidden">
+      <div class="acr-topbar">
+        <div style="display:flex;align-items:center;gap:.7rem;flex-wrap:wrap">
+          <button type="button" id="acr-back" class="secondary" style="padding:.35rem .75rem">&#x2190; Back</button>
+          <span class="acr-title">CISSP Acronym Reference</span>
+          <span id="acr-count" class="acr-count-badge"></span>
+        </div>
+        <div class="acr-mode-toggle">
+          <button type="button" id="btn-acr-ref"   class="acr-mode-btn acr-mode-active">&#x1F4CB; Reference</button>
+          <button type="button" id="btn-acr-flash" class="acr-mode-btn">&#x1F0CF; Flashcards</button>
+        </div>
+      </div>
+
+      <!-- Search + domain filters -->
+      <div class="acr-controls">
+        <input type="search" id="acr-search" class="acr-search-input" placeholder="&#x1F50D; Search acronym or expansion&hellip;" autocomplete="off">
+        <div id="acr-domain-row" class="acr-domain-row"></div>
+      </div>
+
+      <!-- A-Z alphabet bar (reference mode) -->
+      <div id="acr-alpha-bar" class="acr-alpha-bar"></div>
+
+      <!-- Reference grid -->
+      <div id="acr-grid" class="acr-grid"></div>
+
+      <!-- Flashcard view -->
+      <div id="acr-flash-wrap" class="acr-flash-wrap hidden">
+        <div class="acr-flash-progress">
+          <span id="acr-flash-pos" class="acr-flash-pos-txt"></span>
+          <div class="acr-flash-bar"><div id="acr-flash-fill" class="acr-flash-fill"></div></div>
+        </div>
+
+        <div id="acr-flash-card" class="acr-flash-card" onclick="flipAcrCard()">
+          <div class="acr-flash-inner" id="acr-flash-inner">
+            <div class="acr-flash-front">
+              <div class="acr-flash-hint-top">Click to reveal</div>
+              <div id="acr-flash-acronym" class="acr-flash-acronym"></div>
+              <div class="acr-flash-hint">What does this stand for?</div>
+            </div>
+            <div class="acr-flash-back">
+              <div id="acr-flash-full"   class="acr-flash-full"></div>
+              <div id="acr-flash-domain" class="acr-flash-domain-slot"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="acr-flash-actions">
+          <button type="button" id="btn-flash-review" class="danger">&#x1F501; Review Later</button>
+          <button type="button" id="btn-flash-know">&#x2713; Know It!</button>
+        </div>
+
+        <div id="acr-flash-summary" class="acr-flash-summary hidden">
+          <div class="acr-sum-icon">&#x1F389;</div>
+          <h3>Session Complete!</h3>
+          <div id="acr-flash-summary-text" class="acr-sum-text"></div>
+          <div class="row mt">
+            <button type="button" id="btn-flash-restart" class="secondary">&#x21BA; Full Restart</button>
+            <button type="button" id="btn-flash-retry">&#x1F501; Retry Missed</button>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- Key Concepts viewer -->

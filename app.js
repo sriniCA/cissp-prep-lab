@@ -479,7 +479,7 @@
   }
 
   function showView(name) {
-    ["view-home", "view-mock-setup", "view-study-setup", "view-help", "view-run", "view-results", "view-concepts", "view-resources", "view-jobs", "view-resume"].forEach(
+    ["view-home", "view-mock-setup", "view-study-setup", "view-help", "view-run", "view-results", "view-concepts", "view-resources", "view-jobs", "view-resume", "view-acronyms"].forEach(
       (id) => {
         const el = $(id);
         if (el) el.classList.toggle("hidden", id !== name);
@@ -1332,6 +1332,47 @@
       renderResumeView();
     });
 
+    $("btn-acronyms").addEventListener("click", () => {
+      _acrSearch = ""; _acrDomain = "all"; _acrMode = "ref";
+      showView("view-acronyms");
+      renderAcronymsView();
+      const inp = $("acr-search");
+      if (inp) inp.value = "";
+    });
+    $("acr-back").addEventListener("click", () => showView("view-home"));
+    $("btn-acr-ref").addEventListener("click", () => {
+      _acrMode = "ref";
+      renderAcronymsView();
+    });
+    $("btn-acr-flash").addEventListener("click", () => {
+      _acrMode = "flash";
+      renderAcronymsView();
+    });
+    $("acr-search").addEventListener("input", e => {
+      _acrSearch = e.target.value.trim();
+      renderAcronymsView();
+    });
+    $("btn-flash-know").addEventListener("click", () => {
+      _acrKnown++;
+      _acrPos++;
+      renderAcrFlashCard();
+    });
+    $("btn-flash-review").addEventListener("click", () => {
+      _acrReview.push(_acrDeck[_acrPos]);
+      _acrPos++;
+      renderAcrFlashCard();
+    });
+    $("btn-flash-restart").addEventListener("click", () => {
+      renderAcrFlashStart();
+    });
+    $("btn-flash-retry").addEventListener("click", () => {
+      _acrDeck   = [..._acrReview].sort(() => Math.random() - 0.5);
+      _acrPos    = 0;
+      _acrKnown  = 0;
+      _acrReview = [];
+      renderAcrFlashCard();
+    });
+
     $("btn-concepts").addEventListener("click", () => {
       showView("view-concepts");
       showConceptsDomainList();
@@ -1929,6 +1970,407 @@
     showView("view-run");
     renderQuestion();
   }
+
+  // ── Acronym Reference & Flashcard view ───────────────────────────
+
+  const CISSP_ACRONYMS = [
+    // Security & Risk Management
+    {a:"AAA",       f:"Authentication, Authorization, and Accounting",                   d:"identity_access_management"},
+    {a:"ALE",       f:"Annualized Loss Expectancy",                                      d:"security_and_risk_management"},
+    {a:"ARO",       f:"Annualized Rate of Occurrence",                                   d:"security_and_risk_management"},
+    {a:"BCP",       f:"Business Continuity Plan",                                        d:"security_and_risk_management"},
+    {a:"BIA",       f:"Business Impact Analysis",                                        d:"security_and_risk_management"},
+    {a:"CIA",       f:"Confidentiality, Integrity, Availability",                        d:"security_and_risk_management"},
+    {a:"CISO",      f:"Chief Information Security Officer",                              d:"security_and_risk_management"},
+    {a:"CSO",       f:"Chief Security Officer",                                          d:"security_and_risk_management"},
+    {a:"DRP",       f:"Disaster Recovery Plan",                                          d:"security_and_risk_management"},
+    {a:"EF",        f:"Exposure Factor",                                                 d:"security_and_risk_management"},
+    {a:"FERPA",     f:"Family Educational Rights and Privacy Act",                       d:"security_and_risk_management"},
+    {a:"FIPS",      f:"Federal Information Processing Standard",                         d:"security_and_risk_management"},
+    {a:"GLBA",      f:"Gramm-Leach-Bliley Act",                                          d:"security_and_risk_management"},
+    {a:"HIPAA",     f:"Health Insurance Portability and Accountability Act",             d:"security_and_risk_management"},
+    {a:"ISO",       f:"International Organization for Standardization",                  d:"security_and_risk_management"},
+    {a:"ITAR",      f:"International Traffic in Arms Regulations",                       d:"security_and_risk_management"},
+    {a:"MTD",       f:"Maximum Tolerable Downtime",                                      d:"security_and_risk_management"},
+    {a:"NIST",      f:"National Institute of Standards and Technology",                  d:"security_and_risk_management"},
+    {a:"PCI DSS",   f:"Payment Card Industry Data Security Standard",                   d:"security_and_risk_management"},
+    {a:"PII",       f:"Personally Identifiable Information",                             d:"security_and_risk_management"},
+    {a:"RMF",       f:"Risk Management Framework",                                       d:"security_and_risk_management"},
+    {a:"RPO",       f:"Recovery Point Objective",                                        d:"security_and_risk_management"},
+    {a:"RTO",       f:"Recovery Time Objective",                                         d:"security_and_risk_management"},
+    {a:"SLA",       f:"Service Level Agreement",                                         d:"security_and_risk_management"},
+    {a:"SLE",       f:"Single Loss Expectancy",                                          d:"security_and_risk_management"},
+    {a:"SOX",       f:"Sarbanes-Oxley Act",                                              d:"security_and_risk_management"},
+    // Asset Security
+    {a:"CDM",       f:"Continuous Diagnostics and Mitigation",                           d:"asset_security"},
+    {a:"DLP",       f:"Data Loss Prevention",                                            d:"asset_security"},
+    {a:"DRM",       f:"Digital Rights Management",                                       d:"asset_security"},
+    {a:"FDE",       f:"Full Disk Encryption",                                            d:"asset_security"},
+    {a:"GDPR",      f:"General Data Protection Regulation",                              d:"asset_security"},
+    {a:"MDM",       f:"Mobile Device Management",                                        d:"asset_security"},
+    {a:"PHI",       f:"Protected Health Information",                                    d:"asset_security"},
+    {a:"SaaS",      f:"Software as a Service",                                           d:"asset_security"},
+    {a:"IaaS",      f:"Infrastructure as a Service",                                     d:"asset_security"},
+    {a:"PaaS",      f:"Platform as a Service",                                           d:"asset_security"},
+    // Security Architecture & Engineering
+    {a:"3DES",      f:"Triple Data Encryption Standard",                                 d:"security_architecture_engineering"},
+    {a:"AES",       f:"Advanced Encryption Standard",                                    d:"security_architecture_engineering"},
+    {a:"CA",        f:"Certificate Authority",                                            d:"security_architecture_engineering"},
+    {a:"CBC",       f:"Cipher Block Chaining",                                           d:"security_architecture_engineering"},
+    {a:"CRL",       f:"Certificate Revocation List",                                     d:"security_architecture_engineering"},
+    {a:"CTR",       f:"Counter Mode (encryption mode)",                                  d:"security_architecture_engineering"},
+    {a:"DAC",       f:"Discretionary Access Control",                                    d:"security_architecture_engineering"},
+    {a:"DES",       f:"Data Encryption Standard",                                        d:"security_architecture_engineering"},
+    {a:"DEP",       f:"Data Execution Prevention",                                       d:"security_architecture_engineering"},
+    {a:"DMZ",       f:"Demilitarized Zone",                                              d:"security_architecture_engineering"},
+    {a:"ECC",       f:"Elliptic Curve Cryptography",                                     d:"security_architecture_engineering"},
+    {a:"ECDSA",     f:"Elliptic Curve Digital Signature Algorithm",                      d:"security_architecture_engineering"},
+    {a:"EMI",       f:"Electromagnetic Interference",                                    d:"security_architecture_engineering"},
+    {a:"GCM",       f:"Galois/Counter Mode",                                             d:"security_architecture_engineering"},
+    {a:"HMAC",      f:"Hash-based Message Authentication Code",                          d:"security_architecture_engineering"},
+    {a:"HSM",       f:"Hardware Security Module",                                        d:"security_architecture_engineering"},
+    {a:"IDEA",      f:"International Data Encryption Algorithm",                         d:"security_architecture_engineering"},
+    {a:"IV",        f:"Initialization Vector",                                           d:"security_architecture_engineering"},
+    {a:"MAC",       f:"Mandatory Access Control / Message Authentication Code",          d:"security_architecture_engineering"},
+    {a:"MD5",       f:"Message Digest 5",                                                d:"security_architecture_engineering"},
+    {a:"OCSP",      f:"Online Certificate Status Protocol",                              d:"security_architecture_engineering"},
+    {a:"OFB",       f:"Output Feedback (encryption mode)",                               d:"security_architecture_engineering"},
+    {a:"PGP",       f:"Pretty Good Privacy",                                             d:"security_architecture_engineering"},
+    {a:"PKCS",      f:"Public Key Cryptography Standards",                               d:"security_architecture_engineering"},
+    {a:"PKI",       f:"Public Key Infrastructure",                                       d:"security_architecture_engineering"},
+    {a:"RC4",       f:"Rivest Cipher 4",                                                 d:"security_architecture_engineering"},
+    {a:"RBAC",      f:"Role-Based Access Control",                                       d:"security_architecture_engineering"},
+    {a:"RSA",       f:"Rivest-Shamir-Adleman (asymmetric algorithm)",                    d:"security_architecture_engineering"},
+    {a:"SHA",       f:"Secure Hash Algorithm",                                           d:"security_architecture_engineering"},
+    {a:"SHA-256",   f:"Secure Hash Algorithm – 256-bit",                                 d:"security_architecture_engineering"},
+    {a:"S/MIME",    f:"Secure / Multipurpose Internet Mail Extensions",                  d:"security_architecture_engineering"},
+    {a:"TCB",       f:"Trusted Computing Base",                                          d:"security_architecture_engineering"},
+    {a:"TCSEC",     f:"Trusted Computer System Evaluation Criteria",                     d:"security_architecture_engineering"},
+    {a:"TPM",       f:"Trusted Platform Module",                                         d:"security_architecture_engineering"},
+    {a:"VMM",       f:"Virtual Machine Monitor (Hypervisor)",                            d:"security_architecture_engineering"},
+    // Communication & Network Security
+    {a:"ARP",       f:"Address Resolution Protocol",                                     d:"communication_network_security"},
+    {a:"BGP",       f:"Border Gateway Protocol",                                         d:"communication_network_security"},
+    {a:"BYOD",      f:"Bring Your Own Device",                                           d:"communication_network_security"},
+    {a:"CHAP",      f:"Challenge Handshake Authentication Protocol",                     d:"communication_network_security"},
+    {a:"CSRF",      f:"Cross-Site Request Forgery",                                      d:"communication_network_security"},
+    {a:"DDoS",      f:"Distributed Denial of Service",                                   d:"communication_network_security"},
+    {a:"DHCP",      f:"Dynamic Host Configuration Protocol",                             d:"communication_network_security"},
+    {a:"DNS",       f:"Domain Name System",                                              d:"communication_network_security"},
+    {a:"DNSSEC",    f:"Domain Name System Security Extensions",                          d:"communication_network_security"},
+    {a:"DoS",       f:"Denial of Service",                                               d:"communication_network_security"},
+    {a:"EAP",       f:"Extensible Authentication Protocol",                              d:"communication_network_security"},
+    {a:"FTP",       f:"File Transfer Protocol",                                          d:"communication_network_security"},
+    {a:"HTTP",      f:"Hypertext Transfer Protocol",                                     d:"communication_network_security"},
+    {a:"HTTPS",     f:"Hypertext Transfer Protocol Secure",                              d:"communication_network_security"},
+    {a:"ICMP",      f:"Internet Control Message Protocol",                               d:"communication_network_security"},
+    {a:"IDS",       f:"Intrusion Detection System",                                      d:"communication_network_security"},
+    {a:"IKE",       f:"Internet Key Exchange",                                           d:"communication_network_security"},
+    {a:"IMAP",      f:"Internet Message Access Protocol",                                d:"communication_network_security"},
+    {a:"IPSec",     f:"Internet Protocol Security",                                      d:"communication_network_security"},
+    {a:"IPS",       f:"Intrusion Prevention System",                                     d:"communication_network_security"},
+    {a:"L2TP",      f:"Layer 2 Tunneling Protocol",                                      d:"communication_network_security"},
+    {a:"LDAP",      f:"Lightweight Directory Access Protocol",                           d:"communication_network_security"},
+    {a:"MPLS",      f:"Multiprotocol Label Switching",                                   d:"communication_network_security"},
+    {a:"NAC",       f:"Network Access Control",                                          d:"communication_network_security"},
+    {a:"NAT",       f:"Network Address Translation",                                     d:"communication_network_security"},
+    {a:"NIDS",      f:"Network-based Intrusion Detection System",                        d:"communication_network_security"},
+    {a:"OSI",       f:"Open Systems Interconnection (7-layer model)",                    d:"communication_network_security"},
+    {a:"OSPF",      f:"Open Shortest Path First",                                        d:"communication_network_security"},
+    {a:"PAP",       f:"Password Authentication Protocol",                                d:"communication_network_security"},
+    {a:"POP3",      f:"Post Office Protocol version 3",                                  d:"communication_network_security"},
+    {a:"PPTP",      f:"Point-to-Point Tunneling Protocol",                               d:"communication_network_security"},
+    {a:"RADIUS",    f:"Remote Authentication Dial-In User Service",                      d:"communication_network_security"},
+    {a:"RIP",       f:"Routing Information Protocol",                                    d:"communication_network_security"},
+    {a:"SFTP",      f:"Secure File Transfer Protocol",                                   d:"communication_network_security"},
+    {a:"SIP",       f:"Session Initiation Protocol",                                     d:"communication_network_security"},
+    {a:"SMTP",      f:"Simple Mail Transfer Protocol",                                   d:"communication_network_security"},
+    {a:"SNMP",      f:"Simple Network Management Protocol",                              d:"communication_network_security"},
+    {a:"SSH",       f:"Secure Shell",                                                    d:"communication_network_security"},
+    {a:"SSL",       f:"Secure Sockets Layer",                                            d:"communication_network_security"},
+    {a:"SSTP",      f:"Secure Socket Tunneling Protocol",                                d:"communication_network_security"},
+    {a:"TCP",       f:"Transmission Control Protocol",                                   d:"communication_network_security"},
+    {a:"TLS",       f:"Transport Layer Security",                                        d:"communication_network_security"},
+    {a:"UDP",       f:"User Datagram Protocol",                                          d:"communication_network_security"},
+    {a:"VLAN",      f:"Virtual Local Area Network",                                      d:"communication_network_security"},
+    {a:"VoIP",      f:"Voice over Internet Protocol",                                    d:"communication_network_security"},
+    {a:"VPN",       f:"Virtual Private Network",                                         d:"communication_network_security"},
+    {a:"WAF",       f:"Web Application Firewall",                                        d:"communication_network_security"},
+    {a:"WEP",       f:"Wired Equivalent Privacy",                                        d:"communication_network_security"},
+    {a:"WPA",       f:"Wi-Fi Protected Access",                                          d:"communication_network_security"},
+    {a:"WPA2",      f:"Wi-Fi Protected Access 2 (802.11i)",                              d:"communication_network_security"},
+    {a:"WPA3",      f:"Wi-Fi Protected Access 3",                                        d:"communication_network_security"},
+    {a:"XSS",       f:"Cross-Site Scripting",                                            d:"communication_network_security"},
+    // Identity & Access Management
+    {a:"2FA",       f:"Two-Factor Authentication",                                       d:"identity_access_management"},
+    {a:"ABAC",      f:"Attribute-Based Access Control",                                  d:"identity_access_management"},
+    {a:"AD",        f:"Active Directory",                                                d:"identity_access_management"},
+    {a:"CER",       f:"Crossover Error Rate",                                            d:"identity_access_management"},
+    {a:"FAR",       f:"False Acceptance Rate",                                           d:"identity_access_management"},
+    {a:"FIDO",      f:"Fast Identity Online",                                            d:"identity_access_management"},
+    {a:"FRR",       f:"False Rejection Rate",                                            d:"identity_access_management"},
+    {a:"IAM",       f:"Identity and Access Management",                                  d:"identity_access_management"},
+    {a:"IdP",       f:"Identity Provider",                                               d:"identity_access_management"},
+    {a:"MFA",       f:"Multi-Factor Authentication",                                     d:"identity_access_management"},
+    {a:"OAuth",     f:"Open Authorization (delegated access standard)",                  d:"identity_access_management"},
+    {a:"OIDC",      f:"OpenID Connect",                                                  d:"identity_access_management"},
+    {a:"OTP",       f:"One-Time Password",                                               d:"identity_access_management"},
+    {a:"PAM",       f:"Privileged Access Management",                                    d:"identity_access_management"},
+    {a:"POLP",      f:"Principle of Least Privilege",                                    d:"identity_access_management"},
+    {a:"SAML",      f:"Security Assertion Markup Language",                              d:"identity_access_management"},
+    {a:"SCIM",      f:"System for Cross-domain Identity Management",                     d:"identity_access_management"},
+    {a:"SSO",       f:"Single Sign-On",                                                  d:"identity_access_management"},
+    {a:"TACACS+",   f:"Terminal Access Controller Access-Control System Plus",           d:"identity_access_management"},
+    {a:"TOTP",      f:"Time-based One-Time Password",                                    d:"identity_access_management"},
+    // Security Assessment & Testing
+    {a:"CVE",       f:"Common Vulnerabilities and Exposures",                            d:"security_assessment_testing"},
+    {a:"CVSS",      f:"Common Vulnerability Scoring System",                             d:"security_assessment_testing"},
+    {a:"CWE",       f:"Common Weakness Enumeration",                                     d:"security_assessment_testing"},
+    {a:"DAST",      f:"Dynamic Application Security Testing",                            d:"security_assessment_testing"},
+    {a:"IAST",      f:"Interactive Application Security Testing",                        d:"security_assessment_testing"},
+    {a:"NVD",       f:"National Vulnerability Database",                                 d:"security_assessment_testing"},
+    {a:"OVAL",      f:"Open Vulnerability and Assessment Language",                      d:"security_assessment_testing"},
+    {a:"OWASP",     f:"Open Web Application Security Project",                          d:"security_assessment_testing"},
+    {a:"RASP",      f:"Runtime Application Self-Protection",                             d:"security_assessment_testing"},
+    {a:"SAST",      f:"Static Application Security Testing",                             d:"security_assessment_testing"},
+    {a:"SCAP",      f:"Security Content Automation Protocol",                            d:"security_assessment_testing"},
+    {a:"SOC",       f:"System and Organization Controls / Security Operations Center",   d:"security_assessment_testing"},
+    {a:"VA",        f:"Vulnerability Assessment",                                        d:"security_assessment_testing"},
+    {a:"VAPT",      f:"Vulnerability Assessment and Penetration Testing",                d:"security_assessment_testing"},
+    // Security Operations
+    {a:"APT",       f:"Advanced Persistent Threat",                                      d:"security_operations"},
+    {a:"CIRT",      f:"Computer Incident Response Team",                                 d:"security_operations"},
+    {a:"CSIRT",     f:"Computer Security Incident Response Team",                        d:"security_operations"},
+    {a:"EDR",       f:"Endpoint Detection and Response",                                 d:"security_operations"},
+    {a:"FIM",       f:"File Integrity Monitoring",                                       d:"security_operations"},
+    {a:"IOC",       f:"Indicator of Compromise",                                         d:"security_operations"},
+    {a:"IR",        f:"Incident Response",                                               d:"security_operations"},
+    {a:"IRP",       f:"Incident Response Plan",                                          d:"security_operations"},
+    {a:"MDR",       f:"Managed Detection and Response",                                  d:"security_operations"},
+    {a:"MSSP",      f:"Managed Security Service Provider",                               d:"security_operations"},
+    {a:"NOC",       f:"Network Operations Center",                                       d:"security_operations"},
+    {a:"OSINT",     f:"Open Source Intelligence",                                        d:"security_operations"},
+    {a:"SIEM",      f:"Security Information and Event Management",                       d:"security_operations"},
+    {a:"SOAR",      f:"Security Orchestration, Automation, and Response",                d:"security_operations"},
+    {a:"SOP",       f:"Standard Operating Procedure",                                    d:"security_operations"},
+    {a:"STIX",      f:"Structured Threat Information eXpression",                        d:"security_operations"},
+    {a:"TAXII",     f:"Trusted Automated eXchange of Intelligence Information",          d:"security_operations"},
+    {a:"TTP",       f:"Tactics, Techniques, and Procedures",                             d:"security_operations"},
+    {a:"UEBA",      f:"User and Entity Behavior Analytics",                              d:"security_operations"},
+    {a:"XDR",       f:"Extended Detection and Response",                                 d:"security_operations"},
+    // Software Development Security
+    {a:"ASVS",      f:"Application Security Verification Standard",                     d:"software_development_security"},
+    {a:"CI/CD",     f:"Continuous Integration / Continuous Deployment",                  d:"software_development_security"},
+    {a:"DevSecOps", f:"Development, Security, and Operations",                           d:"software_development_security"},
+    {a:"REST",      f:"Representational State Transfer",                                 d:"software_development_security"},
+    {a:"SDLC",      f:"Software Development Life Cycle",                                 d:"software_development_security"},
+    {a:"SOA",       f:"Service-Oriented Architecture",                                   d:"software_development_security"},
+    {a:"SQL",       f:"Structured Query Language",                                       d:"software_development_security"},
+    {a:"SQLi",      f:"SQL Injection",                                                   d:"software_development_security"},
+    {a:"XXE",       f:"XML External Entity (injection attack)",                          d:"software_development_security"},
+    {a:"SAST",      f:"Static Application Security Testing",                             d:"software_development_security"},
+    {a:"DAST",      f:"Dynamic Application Security Testing",                            d:"software_development_security"},
+  ].sort((x,y) => x.a.localeCompare(y.a, undefined, {sensitivity:"base"}));
+
+  // domain short-labels and hue map for acronym badges
+  const ACR_DOMAIN_META = {
+    security_and_risk_management:      {short:"Risk Mgmt",   hue:220},
+    asset_security:                    {short:"Asset Sec",   hue:175},
+    security_architecture_engineering: {short:"Arch & Eng",  hue:260},
+    communication_network_security:    {short:"Network",     hue:200},
+    identity_access_management:        {short:"IAM",         hue:280},
+    security_assessment_testing:       {short:"Assessment",  hue:40},
+    security_operations:               {short:"Ops",         hue:15},
+    software_development_security:     {short:"Dev Sec",     hue:140},
+  };
+
+  // Acronym view module state (outside main state object — ephemeral UI)
+  let _acrSearch  = "";
+  let _acrDomain  = "all";
+  let _acrMode    = "ref";        // "ref" | "flash"
+  let _acrDeck    = [];           // current flashcard deck
+  let _acrPos     = 0;
+  let _acrKnown   = 0;
+  let _acrReview  = [];           // items marked "review later"
+  let _acrFlipped = false;
+
+  function _acrFiltered() {
+    const q = _acrSearch.toLowerCase();
+    return CISSP_ACRONYMS.filter(item =>
+      (_acrDomain === "all" || item.d === _acrDomain) &&
+      (!q || item.a.toLowerCase().includes(q) || item.f.toLowerCase().includes(q))
+    );
+  }
+
+  function _acrDomainBadge(d) {
+    const m = ACR_DOMAIN_META[d] || {short:d, hue:200};
+    return `<span class="acr-domain-badge" style="--hue:${m.hue}">${m.short}</span>`;
+  }
+
+  function renderAcronymsView() {
+    // ── domain filter chips ──────────────────────────────────
+    const domainRow = $("acr-domain-row");
+    if (domainRow) {
+      const chips = [["all","All Domains"]]
+        .concat(Object.entries(ACR_DOMAIN_META).map(([k,v])=>[k,v.short]))
+        .map(([k,label]) => {
+          const cnt = k === "all"
+            ? CISSP_ACRONYMS.length
+            : CISSP_ACRONYMS.filter(x=>x.d===k).length;
+          const active = _acrDomain === k ? " acr-chip-active" : "";
+          return `<button class="acr-chip${active}" data-dom="${k}">${label} <sup>${cnt}</sup></button>`;
+        }).join("");
+      domainRow.innerHTML = chips;
+      domainRow.querySelectorAll(".acr-chip").forEach(btn =>
+        btn.addEventListener("click", () => {
+          _acrDomain = btn.dataset.dom;
+          _acrSearch = "";
+          const inp = $("acr-search");
+          if (inp) inp.value = "";
+          renderAcronymsView();
+        })
+      );
+    }
+    // ── mode toggle active state ─────────────────────────────
+    [$("btn-acr-ref"), $("btn-acr-flash")].forEach(b => b && b.classList.remove("acr-mode-active"));
+    const activeBtn = $(_acrMode === "ref" ? "btn-acr-ref" : "btn-acr-flash");
+    if (activeBtn) activeBtn.classList.add("acr-mode-active");
+
+    if (_acrMode === "ref") {
+      renderAcrRefGrid();
+    } else {
+      renderAcrFlashStart();
+    }
+  }
+
+  function renderAcrRefGrid() {
+    const grid  = $("acr-grid");
+    const alpha = $("acr-alpha-bar");
+    const wrap  = $("acr-flash-wrap");
+    if (grid)  grid.classList.remove("hidden");
+    if (wrap)  wrap.classList.add("hidden");
+    if (alpha) alpha.classList.remove("hidden");
+
+    const list = _acrFiltered();
+    const countEl = $("acr-count");
+    if (countEl) countEl.textContent = `${list.length} / ${CISSP_ACRONYMS.length}`;
+
+    if (!list.length) {
+      if (grid)  grid.innerHTML = `<div class="acr-empty">No acronyms match your search.</div>`;
+      if (alpha) alpha.innerHTML = "";
+      return;
+    }
+
+    // Group by first letter
+    const groups = {};
+    list.forEach(item => {
+      const letter = item.a[0].toUpperCase();
+      (groups[letter] = groups[letter] || []).push(item);
+    });
+    const letters = Object.keys(groups).sort();
+
+    // Alphabet bar
+    const allLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+    if (alpha) {
+      alpha.innerHTML = allLetters.map(l =>
+        letters.includes(l)
+          ? `<a class="acr-alpha-link" href="#acr-grp-${l}">${l}</a>`
+          : `<span class="acr-alpha-dim">${l}</span>`
+      ).join("");
+    }
+
+    // Cards grid
+    if (grid) {
+      grid.innerHTML = letters.map(letter => {
+        const cards = groups[letter].map(item => {
+          const m = ACR_DOMAIN_META[item.d] || {hue:200};
+          return `<div class="acr-card" style="--hue:${m.hue}">
+            <div class="acr-card-top">
+              <span class="acr-card-acronym">${item.a}</span>
+              ${_acrDomainBadge(item.d)}
+            </div>
+            <div class="acr-card-full">${item.f}</div>
+          </div>`;
+        }).join("");
+        return `<div class="acr-letter-group" id="acr-grp-${letter}">
+          <div class="acr-letter-head">${letter}</div>
+          <div class="acr-card-row">${cards}</div>
+        </div>`;
+      }).join("");
+    }
+  }
+
+  function renderAcrFlashStart() {
+    const grid  = $("acr-grid");
+    const alpha = $("acr-alpha-bar");
+    const wrap  = $("acr-flash-wrap");
+    const sumEl = $("acr-flash-summary");
+    if (grid)  grid.classList.add("hidden");
+    if (alpha) alpha.classList.add("hidden");
+    if (wrap)  wrap.classList.remove("hidden");
+    if (sumEl) sumEl.classList.add("hidden");
+
+    // Build fresh deck from filtered list (shuffle)
+    _acrDeck = [..._acrFiltered()].sort(() => Math.random() - 0.5);
+    _acrPos   = 0;
+    _acrKnown = 0;
+    _acrReview = [];
+    _acrFlipped = false;
+
+    const countEl = $("acr-count");
+    if (countEl) countEl.textContent = `${_acrDeck.length} cards`;
+
+    renderAcrFlashCard();
+  }
+
+  function renderAcrFlashCard() {
+    const sumEl   = $("acr-flash-summary");
+    const cardEl  = $("acr-flash-card");
+    const actEl   = document.querySelector(".acr-flash-actions");
+
+    if (_acrPos >= _acrDeck.length) {
+      // Session complete
+      if (cardEl) cardEl.classList.add("hidden");
+      if (actEl)  actEl.classList.add("hidden");
+      if (sumEl) {
+        sumEl.classList.remove("hidden");
+        const txt = $("acr-flash-summary-text");
+        if (txt) txt.innerHTML =
+          `<p>✅ <strong>${_acrKnown}</strong> known &nbsp;|&nbsp; 🔁 <strong>${_acrReview.length}</strong> to review</p>` +
+          (_acrReview.length ? `<p style="font-size:.85rem;color:var(--muted)">Review cards: ${_acrReview.map(x=>`<strong>${x.a}</strong>`).join(", ")}</p>` : "");
+      }
+      return;
+    }
+
+    if (cardEl) cardEl.classList.remove("hidden");
+    if (actEl)  actEl.classList.remove("hidden");
+    if (sumEl)  sumEl.classList.add("hidden");
+    _acrFlipped = false;
+
+    const item   = _acrDeck[_acrPos];
+    const inner  = $("acr-flash-inner");
+    if (inner) inner.classList.remove("flipped");
+
+    const acr  = $("acr-flash-acronym");
+    const full = $("acr-flash-full");
+    const dom  = $("acr-flash-domain");
+    if (acr)  acr.textContent  = item.a;
+    if (full) full.textContent = item.f;
+    if (dom)  dom.innerHTML    = _acrDomainBadge(item.d);
+
+    // Progress bar
+    const pos  = $("acr-flash-pos");
+    const fill = $("acr-flash-fill");
+    if (pos)  pos.textContent = `Card ${_acrPos + 1} of ${_acrDeck.length}`;
+    if (fill) fill.style.width = `${((_acrPos) / _acrDeck.length) * 100}%`;
+  }
+
+  function flipAcrCard() {
+    _acrFlipped = !_acrFlipped;
+    const inner = $("acr-flash-inner");
+    if (inner) inner.classList.toggle("flipped", _acrFlipped);
+  }
+  window.flipAcrCard = flipAcrCard; // expose for inline onclick
 
   // ── Jobs view ────────────────────────────────────────────────────
 
